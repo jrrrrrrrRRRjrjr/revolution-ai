@@ -3,7 +3,7 @@ Database Models for (R)Evolution App
 Uses SQLAlchemy for relational database (SQLite)
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Boolean, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -20,13 +20,14 @@ class User(Base):
     user_id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)  # Will store hashed password
+    is_admin = Column(Boolean, default=False)  # Admin flag
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
     relationships = relationship('Relationship', back_populates='user')
     
     def __repr__(self):
-        return f"<User(user_id={self.user_id}, email='{self.email}')>"
+        return f"<User(user_id={self.user_id}, email='{self.email}', is_admin={self.is_admin})>"
 
 
 class Relationship(Base):
@@ -85,7 +86,30 @@ class Hobby(Base):
     category = Column(String(50), nullable=True)  # e.g., "Sports", "Indoor", "Instant Relief"
     
     # Relationships
-    user = relationship('User')
+    usr = relationship('User')
     
     def __repr__(self):
         return f"<Hobby(hobby_id={self.hobby_id}, hobby_name='{self.hobby_name}', category='{self.category}')>"
+
+
+class AnalysisHistory(Base):
+    """
+    Analysis History table - stores all AI analysis results
+    Allows users and admins to review past analyses
+    """
+    __tablename__ = 'analysis_history'
+    
+    analysis_id = Column(Integer, primary_key=True, autoincrement=True)
+    relationship_id = Column(Integer, ForeignKey('relationships.relationship_id'), nullable=False)
+    user_id = Column(Integer, ForeignKey('users.user_id'), nullable=False)
+    analysis_type = Column(String(50), nullable=False)  # e.g., "emotion_cause", "partner_behavior", "self_behavior", "effort_ratio", "relationship_pattern"
+    query_input = Column(Text, nullable=True)  # User's input query (for emotion cause analysis)
+    ai_response = Column(Text, nullable=False)  # AI's complete response
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships (renamed to avoid conflict with relationship() function)
+    rel = relationship('Relationship')
+    usr = relationship('User')
+    
+    def __repr__(self):
+        return f"<AnalysisHistory(analysis_id={self.analysis_id}, type='{self.analysis_type}', created_at='{self.created_at}')>"

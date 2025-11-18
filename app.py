@@ -3,7 +3,7 @@ import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from database.models import Base, User, Relationship, Participant
+from database.models import Base, User, Relationship, Participant, AnalysisHistory
 from database.chroma_db import get_or_create_relationship_collection
 import os
 from pathlib import Path
@@ -144,6 +144,35 @@ DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///./relationship_app.db')
 engine = create_engine(DATABASE_URL)
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
+
+def save_analysis_to_db(relationship_id: int, user_id: int, analysis_type: str, ai_response: str, query_input: str = None):
+    """
+    Save AI analysis result to database
+    
+    Args:
+        relationship_id: The relationship ID
+        user_id: The user ID
+        analysis_type: Type of analysis (e.g., "emotion_cause", "partner_behavior")
+        ai_response: The AI's complete response text
+        query_input: User's input query (optional, for emotion cause analysis)
+    """
+    session = SessionLocal()
+    try:
+        analysis_record = AnalysisHistory(
+            relationship_id=relationship_id,
+            user_id=user_id,
+            analysis_type=analysis_type,
+            query_input=query_input,
+            ai_response=ai_response,
+            created_at=datetime.utcnow()
+        )
+        session.add(analysis_record)
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        st.warning(f"분석 결과 저장 중 오류: {str(e)}")
+    finally:
+        session.close()
 
 def parse_conversation_file(file_content):
     """
@@ -349,6 +378,18 @@ if st.session_state.screen == 'home':
             st.rerun()
     
     st.markdown('---')
+    
+    # Admin login button (hidden at bottom)
+    with st.expander('🔒 관리자 로그인'):
+        admin_password = st.text_input('관리자 비밀번호', type='password', key='admin_pw')
+        if st.button('로그인'):
+            # Simple password check (in production, use proper authentication)
+            if admin_password == os.getenv('ADMIN_PASSWORD', 'admin123'):
+                st.session_state.is_admin = True
+                st.session_state.screen = 'admin'
+                st.rerun()
+            else:
+                st.error('❌ 잘못된 비밀번호입니다.')
     if st.button('🧪 Test Mode (Auto-fill with sample data)', key='btn_test', use_container_width=True):
         # Create sample conversation data
         sample_conversation = """--------------- 2024년 1월 15일 월요일 ---------------
@@ -738,8 +779,10 @@ elif st.session_state.screen == 'analysis':
                 
                 # Build context from search results with STRICT speaker labels
                 context_messages = []
-                if relevant_convos and relevant_convos['documents']:
-                    for doc, metadata in zip(relevant_convos['documents'][0], relevant_convos['metadatas'][0]):
+                if relevant_convos:
+                    for result in relevant_convos:
+                        doc = result['text']
+                        metadata = result['metadata']
                         speaker_label = metadata['speaker']  # 'self' or 'partner'
                         timestamp = metadata.get('timestamp', '')
                         # Format: [SELF] or [PARTNER] with timestamp for clarity
@@ -846,6 +889,19 @@ Follow the GOOD EXAMPLES above. Write in Korean with a friendly but evidence-bas
                     # Call Gemini API with rate limiting
                     response = call_llm_with_rate_limit(prompt)
                     st.session_state[cache_key] = response.content
+                    
+                    # Save to database
+                    try:
+                        user_id = st.session_state.onboarding_data.get('user_id', 1)  # Default to 1 if not logged in
+                        save_analysis_to_db(
+                            relationship_id=relationship_id,
+                            user_id=user_id,
+                            analysis_type='emotion_cause',
+                            ai_response=response.content,
+                            query_input=emotion_input
+                        )
+                    except Exception as e:
+                        pass  # Silently fail if DB save fails
                 
                 # Display result (from cache or fresh)
                 st.markdown('---')
@@ -880,7 +936,15 @@ Follow the GOOD EXAMPLES above. Write in Korean with a friendly but evidence-bas
         col1, col2 = st.columns(2)
         
         with col1:
+            # Initialize session state for partner analysis
+            if 'show_partner_analysis' not in st.session_state:
+                st.session_state.show_partner_analysis = False
+            
             if st.button('📊 상대방의 행동 패턴', use_container_width=True, help='상대방이 보인 행동 패턴을 대화 데이터로 분석합니다'):
+                st.session_state.show_partner_analysis = True
+                st.rerun()
+            
+            if st.session_state.show_partner_analysis:
                 with st.spinner('🔍 상대방의 행동 패턴을 분석하고 있습니다...'):
                     from database.chroma_db import search_conversation_memory
                     
@@ -899,8 +963,10 @@ Follow the GOOD EXAMPLES above. Write in Korean with a friendly but evidence-bas
                     
                     # Build context with partner's messages
                     partner_context = []
-                    if partner_convos and partner_convos['documents']:
-                        for doc, metadata in zip(partner_convos['documents'][0], partner_convos['metadatas'][0]):
+                    if partner_convos:
+                        for result in partner_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
                             timestamp = metadata.get('timestamp', '')
                             partner_context.append(f"[PARTNER] ({timestamp}): {doc}")
                     
@@ -915,7 +981,7 @@ Identify patterns in the partner's behavior that may have contributed to relatio
 🔍 FOCUS AREAS:
 1. Communication patterns (responsive vs. avoidant)
 2. Meeting/effort patterns (initiating vs. passive)
-3. Emotional availability (open vs. distant)
+3. Emotional expression level (expressive vs. reserved)
 4. Commitment patterns (reliable vs. inconsistent)
 
 ⚠️ CRITICAL RULES:
@@ -942,7 +1008,7 @@ Analyze the partner's behavioral patterns and provide:
    - Did they initiate meetings/activities?
    - Evidence with citations
 
-3. **정서적 가용성** (Emotional Availability)
+3. **감정 표현 수준** (Emotional Expression Level)
    - Were they emotionally present?
    - Evidence with citations
 
@@ -957,6 +1023,18 @@ Format each section clearly. Write in Korean. Be evidence-based and objective.""
                         # Call Gemini API with rate limiting
                         response = call_llm_with_rate_limit(prompt)
                         st.session_state[cache_key] = response.content
+                        
+                        # Save to database
+                        try:
+                            user_id = st.session_state.onboarding_data.get('user_id', 1)
+                            save_analysis_to_db(
+                                relationship_id=relationship_id,
+                                user_id=user_id,
+                                analysis_type='partner_behavior',
+                                ai_response=response.content
+                            )
+                        except Exception as e:
+                            pass
                     
                     # Display result (from cache or fresh)
                     st.markdown('---')
@@ -985,7 +1063,15 @@ Format each section clearly. Write in Korean. Be evidence-based and objective.""
                             st.info('⚠️ 상대방의 대화 데이터를 찾을 수 없습니다.')
         
         with col2:
+            # Initialize session state for self analysis
+            if 'show_self_analysis' not in st.session_state:
+                st.session_state.show_self_analysis = False
+            
             if st.button('🪞 나의 행동 패턴', use_container_width=True, help='내가 보인 행동 패턴을 대화 데이터로 분석합니다'):
+                st.session_state.show_self_analysis = True
+                st.rerun()
+            
+            if st.session_state.show_self_analysis:
                 with st.spinner('🔍 나의 행동 패턴을 분석하고 있습니다...'):
                     from database.chroma_db import search_conversation_memory
                     
@@ -1004,8 +1090,10 @@ Format each section clearly. Write in Korean. Be evidence-based and objective.""
                     
                     # Build context with self's messages
                     self_context = []
-                    if self_convos and self_convos['documents']:
-                        for doc, metadata in zip(self_convos['documents'][0], self_convos['metadatas'][0]):
+                    if self_convos:
+                        for result in self_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
                             timestamp = metadata.get('timestamp', '')
                             self_context.append(f"[SELF] ({timestamp}): {doc}")
                     
@@ -1063,6 +1151,18 @@ Format each section clearly. Write in Korean with a supportive, constructive ton
                         # Call Gemini API with rate limiting
                         response = call_llm_with_rate_limit(prompt)
                         st.session_state[cache_key] = response.content
+                        
+                        # Save to database
+                        try:
+                            user_id = st.session_state.onboarding_data.get('user_id', 1)
+                            save_analysis_to_db(
+                                relationship_id=relationship_id,
+                                user_id=user_id,
+                                analysis_type='self_behavior',
+                                ai_response=response.content
+                            )
+                        except Exception as e:
+                            pass
                     
                     # Display result (from cache or fresh)
                     st.markdown('---')
@@ -1120,14 +1220,14 @@ Format each section clearly. Write in Korean with a supportive, constructive ton
                 
                 # Build context
                 partner_context = []
-                if partner_patterns and partner_patterns['documents']:
-                    for doc in partner_patterns['documents'][0][:5]:  # Top 5
-                        partner_context.append(doc)
+                if partner_patterns:
+                    for result in partner_patterns[:5]:  # Top 5
+                        partner_context.append(result['text'])
                 
                 self_context = []
-                if self_patterns and self_patterns['documents']:
-                    for doc in self_patterns['documents'][0][:5]:  # Top 5
-                        self_context.append(doc)
+                if self_patterns:
+                    for result in self_patterns[:5]:  # Top 5
+                        self_context.append(result['text'])
                 
                 partner_text = "\n".join([f"- {msg}" for msg in partner_context]) if partner_context else "No data"
                 self_text = "\n".join([f"- {msg}" for msg in self_context]) if self_context else "No data"
@@ -1381,14 +1481,14 @@ FORMAT RULES:
                 
                 # Build context
                 self_context = []
-                if self_patterns and self_patterns['documents']:
-                    for doc in self_patterns['documents'][0][:10]:
-                        self_context.append(f"- {doc}")
+                if self_patterns:
+                    for result in self_patterns[:10]:
+                        self_context.append(f"- {result['text']}")
                 
                 partner_context = []
-                if partner_patterns and partner_patterns['documents']:
-                    for doc in partner_patterns['documents'][0][:10]:
-                        partner_context.append(f"- {doc}")
+                if partner_patterns:
+                    for result in partner_patterns[:10]:
+                        partner_context.append(f"- {result['text']}")
                 
                 self_text = "\n".join(self_context) if self_context else "No data"
                 partner_text = "\n".join(partner_context) if partner_context else "No data"
@@ -1732,3 +1832,102 @@ Write in Korean."""
                 del st.session_state[key]
             st.success('✅ 캐시가 초기화되었습니다. 버튼을 다시 클릭하면 새로운 분석이 실행됩니다.')
             st.rerun()
+
+elif st.session_state.screen == 'admin':
+    st.title('🔒 관리자 페이지')
+    st.write('모든 사용자의 AI 분석 기록을 확인할 수 있습니다.')
+    
+    if st.button('← 홈으로 돌아가기'):
+        st.session_state.screen = 'home'
+        st.session_state.is_admin = False
+        st.rerun()
+    
+    st.markdown('---')
+    
+    # Fetch all analysis records
+    session = SessionLocal()
+    try:
+        from sqlalchemy import desc
+        
+        # Get total statistics
+        total_analyses = session.query(AnalysisHistory).count()
+        total_users = session.query(User).count()
+        total_relationships = session.query(Relationship).count()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric('📊 총 분석 횟수', total_analyses)
+        with col2:
+            st.metric('👥 총 사용자 수', total_users)
+        with col3:
+            st.metric('💑 총 관계 수', total_relationships)
+        
+        st.markdown('---')
+        
+        # Filter options
+        st.subheader('🔍 필터 옵션')
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            analysis_type_filter = st.selectbox(
+                '분석 타입',
+                ['전체', 'emotion_cause', 'partner_behavior', 'self_behavior', 'effort_ratio', 'relationship_pattern'],
+                index=0
+            )
+        
+        with col2:
+            user_filter = st.text_input('사용자 ID 검색 (선택사항)')
+        
+        # Build query
+        query = session.query(AnalysisHistory, User, Relationship).join(
+            User, AnalysisHistory.user_id == User.user_id
+        ).join(
+            Relationship, AnalysisHistory.relationship_id == Relationship.relationship_id
+        )
+        
+        if analysis_type_filter != '전체':
+            query = query.filter(AnalysisHistory.analysis_type == analysis_type_filter)
+        
+        if user_filter:
+            query = query.filter(User.user_id == int(user_filter))
+        
+        analyses = query.order_by(desc(AnalysisHistory.created_at)).limit(100).all()
+        
+        st.markdown('---')
+        st.subheader(f'📋 분석 기록 ({len(analyses)}개)')
+        
+        # Display analysis records
+        for analysis, user, relationship in analyses:
+            with st.expander(
+                f"[{analysis.analysis_type}] User #{user.user_id} | {analysis.created_at.strftime('%Y-%m-%d %H:%M:%S')}",
+                expanded=False
+            ):
+                col1, col2 = st.columns([1, 2])
+                
+                with col1:
+                    st.markdown('**📊 분석 정보**')
+                    st.write(f'- **분석 ID**: {analysis.analysis_id}')
+                    st.write(f'- **사용자 ID**: {user.user_id}')
+                    st.write(f'- **이메일**: {user.email}')
+                    st.write(f'- **관계 ID**: {relationship.relationship_id}')
+                    st.write(f'- **관계 상태**: {relationship.status}')
+                    st.write(f'- **분석 타입**: {analysis.analysis_type}')
+                    st.write(f'- **생성 시각**: {analysis.created_at.strftime("%Y-%m-%d %H:%M:%S")}')
+                
+                with col2:
+                    if analysis.query_input:
+                        st.markdown('**💭 사용자 입력**')
+                        st.info(analysis.query_input)
+                
+                st.markdown('---')
+                st.markdown('**🤖 AI 응답**')
+                st.markdown(analysis.ai_response)
+        
+        if len(analyses) == 0:
+            st.info('⚠️ 검색 결과가 없습니다.')
+    
+    except Exception as e:
+        st.error(f'❌ 데이터 로드 중 오류: {str(e)}')
+    
+    finally:
+        session.close()
