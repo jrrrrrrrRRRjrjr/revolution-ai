@@ -1851,19 +1851,27 @@ elif st.session_state.screen == 'admin':
     session = SessionLocal()
     try:
         from sqlalchemy import desc
+        from sqlalchemy.exc import OperationalError
         
-        # Get total statistics
-        total_analyses = session.query(AnalysisHistory).count()
-        total_users = session.query(User).count()
-        total_relationships = session.query(Relationship).count()
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric('📊 총 분석 횟수', total_analyses)
-        with col2:
-            st.metric('👥 총 사용자 수', total_users)
-        with col3:
-            st.metric('💑 총 관계 수', total_relationships)
+        # Check if tables exist and have correct schema
+        try:
+            # Get total statistics
+            total_analyses = session.query(AnalysisHistory).count()
+            total_users = session.query(User).count()
+            total_relationships = session.query(Relationship).count()
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric('📊 총 분석 횟수', total_analyses)
+            with col2:
+                st.metric('👥 총 사용자 수', total_users)
+            with col3:
+                st.metric('💑 총 관계 수', total_relationships)
+        except OperationalError as e:
+            st.warning('⚠️ 데이터베이스 스키마가 업데이트되지 않았습니다. 앱을 재시작하면 자동으로 생성됩니다.')
+            st.info('💡 Streamlit Cloud에서는 앱이 재시작될 때마다 데이터베이스가 초기화됩니다. 아직 분석 기록이 없을 수 있습니다.')
+            session.close()
+            st.stop()
         
         st.markdown('---')
         
