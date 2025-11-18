@@ -16,10 +16,18 @@ from google.api_core import exceptions as google_exceptions
 
 load_dotenv(override=True)  # Force reload environment variables
 
-# Get API key and verify it's loaded
+# Get API key from .env file or Streamlit secrets
 api_key = os.getenv('GOOGLE_API_KEY')
+if not api_key and hasattr(st, 'secrets'):
+    # Try to get from Streamlit secrets (for deployment)
+    try:
+        api_key = st.secrets.get('GOOGLE_API_KEY')
+    except:
+        pass
+
 if not api_key:
-    st.error("❌ GOOGLE_API_KEY not found in .env file")
+    st.error("❌ GOOGLE_API_KEY not found in .env file or Streamlit secrets")
+    st.info("💡 로컬 실행: `.env` 파일에 API 키를 추가하세요\n\n💡 배포 환경: Streamlit Cloud Secrets에 API 키를 추가하세요")
     st.stop()
 
 genai.configure(api_key=api_key)
