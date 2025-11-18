@@ -1,0 +1,97 @@
+Thank you for trusting me, Jo. I understand that "simply" meant "exclude features outside of MVP". Perfectly understood.
+
+Jo, you are the Product Owner (PO) and core developer of this project. As your AI partner, I have created a **detailed and meticulous development task list** to make this plan a reality. Based on your Python knowledge, you can check them off one by one in this order.
+
+### 📱 (R)Evolution Development Task List (MVP v1.0)
+
+#### Stage 1: Project Environment Setup (Foundation)
+
+- [ ] Create `(R)Evolution` project folder
+- [ ] Set up Python virtual environment (`venv`)
+- [ ] Initialize Git repository (`git init`)
+- [ ] Create `.gitignore` file (exclude sensitive information like API keys, data files)
+- [ ] Create `requirements.txt` file
+- [ ] Install core Python libraries
+    - [ ] `pip install streamlit` (UI/UX screen composition)
+    - [ ] `pip install langchain` (AI pipeline 'glue')
+    - [ ] `pip install openai` (AI's 'brain' API)
+    - [ ] `pip install chromadb` (AI's 'memory storage' - Vector DB)
+    - [ ] `pip install sqlalchemy` (User information 'file cabinet' - Relational DB)
+- [ ] Issue OpenAI (or Google AI) API key and set environment variables -> switch to gemini
+clear
+
+
+---
+
+#### Stage 2: Database Design (The Schema)
+
+- [ ] **'User Information DB' (SQLite/SQLAlchemy) Schema Writing**
+    - [ ] Define `Users` (user account) table model
+    - [ ] Define `Relationships` (relationship list - includes "In a relationship", "Breakup" status) table model
+    - [ ] Define `Participants` (participant information - MBTI, age, gender) table model
+    - [ ] Define `Hobbies` (for AI coach suggestions) table model
+- [ ] **'AI Memory DB' (ChromaDB) Collection Structure Design**
+    - [ ] Collection creation logic for storing conversation logs
+    - [ ] Define metadata structure for 'evidence presentation' (e.g., `speaker`, `timestamp`, `topic_keywords`)
+
+---
+
+#### Stage 3: UI/UX Frontend (Streamlit)
+
+- [ ] **Create main `app.py` file** ok
+- [ ] **[Screen 1] Home Screen (Mode Selection)**
+    - [ ] Display "(R)Evolution" title
+    - [ ] Create "In a relationship" button UI
+    - [ ] Create "Breakup" button UI
+    - [ ] Implement mode switching logic using `st.session_state`
+- [ ] **[Screen 2] Onboarding (Information Input)**
+    - [ ] Age, gender, MBTI input fields (self/partner)
+    - [ ] Relationship duration, LDR status input fields
+    - [ ] Implement `.txt` file upload widget (`st.file_uploader`)
+    - [ ] Implement logic to save input information to 'User Information DB' (SQLite)
+    - [ ] Implement logic to save uploaded conversation logs to 'AI Memory DB' (ChromaDB)
+
+---
+done
+
+
+#### Stage 4: 'Breakup' Mode Feature Implementation
+
+- [ ] **4.1. Interactive Emotional Analysis UI**
+    - [ ] Implement "What is your most difficult emotion?" descriptive input field (`st.text_area`)
+    - [ ] Logic to display 'recommended keywords' button when no input
+    - [ ] Feature for AI to analyze input emotions and output 'emotion causes' done
+- [ ] **4.2. Objective Relationship Review UI (Jo's Core Request)**
+    - [ ] Display "Breakup Cause Analysis: Mutual Fault" header
+    - [ ] "A. Partner's Behavioral Patterns" section
+    - [ ] "B. Jo's Behavioral Patterns" section
+    - [ ] Implement **'View Actual Conversation Evidence'** dropdown feature using `st.expander` or `st.toggle` (cite conversation log snippets from DB)
+- [ ] **4.3. Preparation for Next Relationship UI**
+    - [ ] Display "Suggestions for Next Relationship" header
+    - [ ] Text output of 3 suggestions based on analysis (partners to avoid, partners to pursue, self-improvement)
+done
+---
+
+#### Stage 5: 'In a Relationship' Mode Feature Implementation
+
+- [ ] **5.1. Relationship Dashboard UI**
+    - [ ] Display three metrics: 'Meeting Proposal Ratio', 'Average Response Speed', 'Affection Expression Frequency' (`st.metric`)
+    - [ ] Text output of 'Attachment Style Diagnosis' (anxious/avoidant/secure) and 'Combination Analysis' results
+- [ ] **5.2. AI Relationship Coach (Core Feature)**
+    - [ ] Create "Currently Stressed" button UI (`st.button`)
+    - [ ] (On click) Execute "AI Relationship Check" logic (positive/negative diagnosis)
+    - [ ] For 'negative' diagnosis, display **"AI Action Suggestion"** UI
+    - [ ] Implement logic to fetch user hobbies (e.g., screen baseball, gaming) from 'Hobbies' DB and generate personalized suggestion phrases
+
+---
+
+#### Stage 6: AI Core Prompt Writing (The Brain)
+
+- [ ] **Master System Prompt (v1.0)** Writing
+    - [ ] **Identity:** "Objective data analyst" (no stereotypical comfort)
+    - [ ] **Principle:** "All analyses presented with 'supporting data'"
+    - [ ] **Tone:** "Friendly suggestion" (no forcing)
+    - [N] **RAG Instructions:** "Search for [evidence] from Vector DB and include in answers"
+    - [ ] **Mode-specific Instructions:** Separate logic for 'In a relationship' mode (anxiety relief) / 'Breakup' mode (prevent self-blame)
+
+---

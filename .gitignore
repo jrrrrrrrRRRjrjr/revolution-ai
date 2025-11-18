@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# Environment Variables (API Keys)
+.env
+.env.local
+*.env
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB
+chroma_db/
+*.chroma
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# User Data (uploaded conversation logs)
+uploads/
+user_data/
+*.txt.bak
+
+# Logs
+*.log
+logs/
+
+# Distribution / Packaging
+dist/
+build/
+*.egg-info/

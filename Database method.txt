@@ -1,0 +1,109 @@
+Database method
+
+Jo님, 바로 그거죠\! 이게 바로 '개발자의 마인드'입니다.
+
+기획(What)이 끝났으니, 이제 \*\*설계(How)\*\*로 넘어갈 차례입니다. "어떤 정보를 저장할까?"는 이 앱의 성패를 가르는 가장 중요한 단계입니다. Jo님이 원하시는 '사용자 특화 상담'을 구현하려면, 우리는 **두 가지 종류의 데이터베이스**가 필요합니다.
+
+1.  **'사용자 정보' 데이터베이스 (관계형 DB):** 앱의 '행정실'이자 '파일 캐비닛'입니다. 사용자의 기본 정보, MBTI, 관계 상태 등을 저장합니다.
+2.  **'AI 기억' 데이터베이스 (벡터 DB):** AI의 '두뇌 도서관'이자 '장기 기억'입니다. Jo님의 모든 대화록을 AI가 검색할 수 있도록 저장합니다.
+
+제가 Jo님의 'AI 파트너'로서 이 두 데이터베이스의 \*\*설계도(Schema)\*\*를 완벽하게 짜드리겠습니다. Jo님은 Python을 아시니, 이 구조를 보시면 바로 이해가 되실 겁니다.
+
+-----
+
+### 1\. '사용자 정보' 데이터베이스 (예: SQLite 또는 PostgreSQL)
+
+  * **목적:** 사용자를 관리하고, 관계의 기본 정보를 저장합니다. Python의 `SQLAlchemy`나 `sqlite3` 라이브러리로 쉽게 만들 수 있습니다.
+  * **비유:** 앱의 '파일 캐비닛'
+
+#### 테이블 1: `Users` (사용자 계정)
+
+| 컬럼명 | 데이터 타입 | 설명 |
+| :--- | :--- | :--- |
+| `user_id` | Integer (Primary Key) | 사용자의 고유 ID (예: Jo님) |
+| `email` | String (Unique) | 로그인 시 사용할 이메일 |
+| `password_hash` | String | 비밀번호 (암호화하여 저장) |
+| `created_at` | DateTime | 계정 생성일 |
+
+#### 테이블 2: `Relationships` (관계 목록)
+
+  * (사용자는 여러 번의 이별과 연애를 기록할 수 있습니다)
+
+| 컬럼명 | 데이터 타입 | 설명 |
+| :--- | :--- | :--- |
+| `relationship_id` | Integer (Primary Key) | 관계의 고유 ID (예: 서영과의 관계) |
+| `user_id` | Integer (Foreign Key) | `Users` 테이블의 `user_id` (누구의 관계인지) |
+| `status` | String | **"연애 중"** 또는 **"이별"** (앱 모드 전환 스위치) |
+| `start_date` | Date | 관계 시작일 |
+| `end_date` | Date (Nullable) | 관계 종료일 (이별 모드일 시) |
+| `total_duration_days` | Integer | (계산됨) [cite\_start]예: **130** [cite: 8] |
+
+#### 테이블 3: `Participants` (관계 참여자 정보)
+
+  * (Jo님이 입력한 '나'와 '상대방'의 상세 정보)
+
+| 컬럼명 | 데이터 타입 | 설명 |
+| :--- | :--- | :--- |
+| `participant_id` | Integer (Primary Key) | 참여자의 고유 ID |
+| `relationship_id` | Integer (Foreign Key) | `Relationships` 테이블의 `relationship_id` |
+| `role` | String | **'self'** (Jo님) 또는 **'partner'** (상대방) |
+| `age` | Integer | (Jo: 26, 상대방: 21) [cite\_start][cite: 4] |
+| `gender` | String | (Jo: 남성, 상대방: 여성) |
+| `mbti` | String | (Jo: ?, 상대방: ?) |
+| `notes` | Text (Nullable) | [cite\_start]AI가 참고할 특이사항 (예: "첫 연애" [cite: 607][cite\_start], "과거 장거리 트라우마" [cite: 395]) |
+
+#### 테이블 4: `Hobbies` (AI 코치 제안용)
+
+  * (Jo님이 좋아한다고 입력하거나, AI가 대화에서 추출한 정보)
+
+| 컬럼명 | 데이터 타입 | 설명 |
+| :--- | :--- | :--- |
+| `hobby_id` | Integer (Primary Key) | 취미의 고유 ID |
+| `user_id` | Integer (Foreign Key) | `Users` 테이블의 `user_id` |
+| `hobby_name` | String | (예: "스크린 야구", "게임", "노래방") [cite\_start][cite: 486, 1277] |
+| `category` | String | (예: '스포츠', '실내', '즉각해소') |
+
+-----
+
+### 2\. 'AI 기억' 데이터베이스 (예: ChromaDB 또는 FAISS)
+
+  * **목적:** 사용자가 업로드한 '대화록'을 AI가 검색할 수 있도록 \*\*벡터(숫자)\*\*로 변환하여 저장합니다. 이게 바로 Jo님이 원하신 "대화 내용을 근거로"의 핵심입니다.
+  * **비유:** AI의 '두뇌 도서관'
+
+이 DB는 테이블 대신 \*\*'Collection'\*\*이라는 단위로 데이터를 관리합니다.
+
+#### Collection: `relationship_chats_{relationship_id}`
+
+  * (예: `relationship_chats_1`은 '서영과의 관계' 대화록 전체를 의미)
+
+이 Collection 안에는 'Document'들이 저장됩니다.
+
+| 저장 항목 | 설명 | 예시 (Jo님의 데이터 기반) |
+| :--- | :--- | :--- |
+| **`id`** | 각 대화 조각의 고유 ID | `chat_chunk_105` |
+| **`vector`** | 대화 내용을 AI가 이해하는 '숫자' | `[0.12, -0.05, 0.88, ...]` |
+| **`metadata`** | **(가장 중요\!)** AI가 검색하고 '근거'로 제시할 정보 | `{` <br> `"speaker": "partner",` <br> `"timestamp": "2025-09-28T17:00:00",` <br> `"text": "굳이",` <br> `"topic": "meeting_avoidance"` <br>`}` |
+| **`metadata`** | (다른 예시) | `{` <br> `"speaker": "partner",` <br> `"timestamp": "2025-10-11T10:00:00",` <br> `"text": "솔직히 친친으로는 몇 번 올렸는데...",` <br> `"topic": "trust_issue", "lie_detected"` <br>`}` |
+
+-----
+
+### Jo님, 이 두 데이터베이스가 어떻게 함께 작동할까요?
+
+**상황:** Jo님이 '연애 중' 모드에서 "나만 좋아하는 것 같아"라고 입력.
+
+1.  **[DB 1 조회]** 앱이 '사용자 정보 DB'를 조회합니다.
+      * "Jo님의 `user_id`는 1번."
+      * "현재 '연애 중'인 `relationship_id`는 15번."
+      * "Jo님(불안형), 상대방(회피형) 확인."
+2.  **[DB 2 검색]** AI가 'AI 기억 DB'(`relationship_chats_15` Collection)에서 관련 기억을 검색합니다.
+      * **검색어:** "Jo, 나만 좋아해, 노력 부족"
+      * **검색 결과 (메타데이터):**
+          * `text: "굳이"`
+          * `text: "만남 제안 Jo 90% vs 상대방 10%"`
+          * `text: "인하대 후문 거짓말"`
+3.  **[AI 답변 생성]** AI가 이 '근거'들을 바탕으로 Jo님에게 답변합니다.
+      * "데이터상 '연인 같지 않다'는 Jo님의 느낌은 **사실일 가능성이 높습니다.** (근거: 만남 회피 '굳이' 발언, 신뢰 훼손 '거짓말' 정황 발견)"
+
+어떤가요, Jo님? 이 정도 설계도면 Jo님의 Python 실력으로 충분히 시작해 볼 수 있겠죠\!
+
+Jo님의 다음 명령을 기다리겠습니다. 이 '사용자 정보 데이터베이스'를 만드는 **Python (`SQLAlchemy`) 기본 코드**부터 함께 작성해 볼까요?

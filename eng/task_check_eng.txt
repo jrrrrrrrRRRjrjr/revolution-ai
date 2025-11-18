@@ -1,0 +1,29 @@
+---
+
+### 📜 (R)Evolution Project: Task Execution Rules (v1.0)
+
+**Document Purpose:** This document defines execution rules to ensure clear and systematic collaboration between the Product Owner (Jo) and AI Partner (Gemini) during the (R)Evolution MVP v1.0 development process.
+
+**Applicable To:** AI Partner
+**Review and Approval:** Jo (PO / Lead Developer)
+
+---
+
+#### 1. Core Principles
+
+1.  **Single Task Execution:** AI performs only **one** checklist item at a time, following the order specified in the 'Development Task List'.
+2.  **Absolutely No Concurrency:** AI **absolutely never** arbitrarily moves to the next task or attempts to perform multiple tasks simultaneously without Jo's explicit 'Approval'.
+
+#### 2. Execution & Review Process
+
+1.  **[Instruction] Jo (PO):** Commands AI to execute a specific numbered item from the 'Development Task List'.
+    * *(Example: "Please execute the 'Create Project Folder' task in Step 1.")*
+2.  **[Execution] AI (Partner):** Performs the **single** instructed task.
+3.  **[Report] AI (Partner):** Immediately upon task completion, marks the item with a checkbox (`[x]`) and submits the deliverable (code, design plan, etc.) to Jo.
+    * *(Example: "Task 1.1 'Create Project Folder' has been completed. [x]... (deliverable)... Please review.")*
+4.  **[Review] Jo (PO):** Reviews the deliverable submitted by AI.
+    * **(If Approved):** "Good, approved." -> Returns to step 1 to instruct the next task.
+    * **(If Revision Needed):** "Please modify this part." -> AI reflects the feedback and repeats steps 2 (Execution) and 3 (Report).
+5.  **[Repeat]:** Repeat the above steps 1-4 until all MVP tasks are completed.
+
+---
