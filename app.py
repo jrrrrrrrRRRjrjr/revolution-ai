@@ -379,17 +379,6 @@ if st.session_state.screen == 'home':
     
     st.markdown('---')
     
-    # Admin login button (hidden at bottom)
-    with st.expander('🔒 관리자 로그인'):
-        admin_password = st.text_input('관리자 비밀번호', type='password', key='admin_pw')
-        if st.button('로그인'):
-            # Simple password check (in production, use proper authentication)
-            if admin_password == os.getenv('ADMIN_PASSWORD', 'admin123'):
-                st.session_state.is_admin = True
-                st.session_state.screen = 'admin'
-                st.rerun()
-            else:
-                st.error('❌ 잘못된 비밀번호입니다.')
     if st.button('🧪 Test Mode (Auto-fill with sample data)', key='btn_test', use_container_width=True):
         # Create sample conversation data
         sample_conversation = """--------------- 2024년 1월 15일 월요일 ---------------
@@ -441,6 +430,20 @@ if st.session_state.screen == 'home':
         st.session_state.mode = 'Breakup'
         st.session_state.screen = 'speaker_selection'
         st.rerun()
+    
+    st.markdown('---')
+    
+    # Admin login section
+    with st.expander('🔒 관리자 로그인'):
+        admin_password = st.text_input('관리자 비밀번호', type='password', key='admin_pw')
+        if st.button('로그인', key='admin_login_btn'):
+            # Simple password check (in production, use proper authentication)
+            if admin_password == os.getenv('ADMIN_PASSWORD', 'admin123'):
+                st.session_state.is_admin = True
+                st.session_state.screen = 'admin'
+                st.rerun()
+            else:
+                st.error('❌ 잘못된 비밀번호입니다.')
 
 elif st.session_state.screen == 'onboarding':
     st.title(f'(R)Evolution - {st.session_state.mode} Mode')
