@@ -104,24 +104,27 @@ def add_conversation_to_memory(
 
 
 def search_conversation_memory(
-    relationship_id: int,
-    query: str,
+    relationship_id: int = None,
+    collection = None,
+    query: str = "",
     n_results: int = 5,
     speaker_filter: str = None
 ):
     """
-    Search conversation memory for relevant context with speaker filtering (v3.0)
+    Search conversation memory for relevant context with speaker filtering (v3.1)
     
     Args:
-        relationship_id: The relationship to search in
+        relationship_id: The relationship to search in (optional if collection provided)
+        collection: ChromaDB collection object (optional, will create if not provided)
         query: Search query (e.g., "avoid ignore distance")
         n_results: Number of results to return
-        speaker_filter: Filter by speaker - "self", "partner", or None for both
+        speaker_filter: Filter by speaker - "self", "partner", "other", or None for all
         
     Returns:
-        Dictionary with results including metadata (text, speaker, timestamp, topic)
+        List of dictionaries with metadata (text, speaker, timestamp, topic)
     """
-    collection = get_or_create_relationship_collection(relationship_id)
+    if collection is None:
+        collection = get_or_create_relationship_collection(relationship_id)
     
     # Build where filter for speaker
     where_filter = None
@@ -134,7 +137,16 @@ def search_conversation_memory(
         where=where_filter
     )
     
-    return results
+    # Format results for easier use
+    formatted_results = []
+    if results and results['documents']:
+        for doc, metadata in zip(results['documents'][0], results['metadatas'][0]):
+            formatted_results.append({
+                'text': doc,
+                'metadata': metadata
+            })
+    
+    return formatted_results
 
 
 def get_context_messages(

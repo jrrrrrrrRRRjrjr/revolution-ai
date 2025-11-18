@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 from database.models import Base, User, Relationship, Participant
 from database.chroma_db import get_or_create_relationship_collection
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 import google.generativeai as genai
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -14,20 +15,39 @@ import re
 import time
 from google.api_core import exceptions as google_exceptions
 
-load_dotenv(override=True)  # Force reload environment variables
+# Load .env file from the correct path
+env_path = Path(__file__).parent / '.env'
+load_dotenv(dotenv_path=env_path, override=True)
 
 # Get API key from .env file or Streamlit secrets
 api_key = os.getenv('GOOGLE_API_KEY')
-if not api_key and hasattr(st, 'secrets'):
-    # Try to get from Streamlit secrets (for deployment)
+
+# If not in env, try Streamlit secrets
+if not api_key:
     try:
-        api_key = st.secrets.get('GOOGLE_API_KEY')
-    except:
+        api_key = st.secrets['GOOGLE_API_KEY']
+    except (KeyError, FileNotFoundError, AttributeError):
         pass
 
+# Strip whitespace if key exists
+if api_key:
+    api_key = api_key.strip()
+
+# Final check
 if not api_key:
     st.error("❌ GOOGLE_API_KEY not found in .env file or Streamlit secrets")
-    st.info("💡 로컬 실행: `.env` 파일에 API 키를 추가하세요\n\n💡 배포 환경: Streamlit Cloud Secrets에 API 키를 추가하세요")
+    st.info(f"""
+    💡 **로컬 실행**: `.env` 파일에 API 키를 추가하세요
+    
+    파일 위치: `{env_path}`
+    
+    형식:
+    ```
+    GOOGLE_API_KEY=your_api_key_here
+    ```
+    
+    💡 **배포 환경**: Streamlit Cloud Secrets에 API 키를 추가하세요
+    """)
     st.stop()
 
 genai.configure(api_key=api_key)
@@ -226,20 +246,37 @@ def parse_conversation_file(file_content):
                 matched = True
         
         # 5. Try generic format: Speaker: Message (only if contains ':')
+        # BUT exclude common false positives like URLs, timestamps, system messages
         if not matched and ':' in stripped:
-            generic_match = patterns['generic'].match(stripped)
-            if generic_match:
-                if current_message_buffer:
-                    parsed_messages.append({
-                        'speaker': current_speaker,
-                        'timestamp': f'{current_date} {current_timestamp}'.strip(),
-                        'text': ' '.join(current_message_buffer),
-                        'line_number': line_number - len(current_message_buffer)
-                    })
-                current_speaker = generic_match.group(1).strip()
-                current_timestamp = ''
-                current_message_buffer = [generic_match.group(2)]
-                matched = True
+            # Exclude false positives
+            false_positive_patterns = [
+                r'^https?:',  # URLs
+                r'^\d{1,2}:\d{2}',  # Timestamps like 14:30
+                r'^저장한\s*날짜:',  # "저장한 날짜:"
+                r'^[-=]+',  # Separator lines
+                r'^\[.*\]',  # Messages starting with brackets
+                r'^사진$|^Photo$|^이미지$|^동영상$',  # Media messages
+            ]
+            
+            is_false_positive = any(re.match(pattern, stripped) for pattern in false_positive_patterns)
+            
+            if not is_false_positive:
+                generic_match = patterns['generic'].match(stripped)
+                if generic_match:
+                    potential_speaker = generic_match.group(1).strip()
+                    # Speaker name should be reasonable length (2-30 chars) and not contain special chars
+                    if 2 <= len(potential_speaker) <= 30 and not re.search(r'[<>{}()\[\]/\\]', potential_speaker):
+                        if current_message_buffer:
+                            parsed_messages.append({
+                                'speaker': current_speaker,
+                                'timestamp': f'{current_date} {current_timestamp}'.strip(),
+                                'text': ' '.join(current_message_buffer),
+                                'line_number': line_number - len(current_message_buffer)
+                            })
+                        current_speaker = potential_speaker
+                        current_timestamp = ''
+                        current_message_buffer = [generic_match.group(2)]
+                        matched = True
         
         # 6. Multi-line message continuation
         if not matched and current_speaker:
@@ -452,26 +489,53 @@ elif st.session_state.screen == 'speaker_selection':
     
     # Show speaker statistics
     st.subheader('📊 Detected Speakers')
+    speaker_counts = {}
     for speaker in speakers:
         count = len([msg for msg in parsed_messages if msg['speaker'] == speaker])
+        speaker_counts[speaker] = count
         st.write(f"**{speaker}**: {count} messages")
     
+    # Sort speakers by message count (descending)
+    sorted_speakers = sorted(speakers, key=lambda s: speaker_counts[s], reverse=True)
+    
     st.markdown('---')
+    
+    # Check if there are more than 2 speakers (group chat)
+    if len(speakers) > 2:
+        st.warning(f"⚠️ **그룹채팅 감지**: {len(speakers)}명의 화자가 감지되었습니다.")
+        st.info("""
+        💡 **그룹채팅 사용 가이드:**
+        - 당신과 분석하고 싶은 **1명의 상대방**만 선택하세요
+        - 나머지 사람들의 메시지는 분석에서 제외됩니다
+        - 1:1 대화 분석에 최적화된 서비스입니다
+        """)
+    
     st.subheader('👥 Who is who?')
     
     # Speaker selection dropdowns
     self_speaker = st.selectbox(
         "Select YOUR name from the conversation:",
-        speakers,
-        key='self_speaker'
+        sorted_speakers,
+        key='self_speaker',
+        help="가장 메시지가 많은 화자가 상단에 표시됩니다"
     )
     
-    partner_speakers = [s for s in speakers if s != self_speaker]
+    partner_speakers = [s for s in sorted_speakers if s != self_speaker]
     partner_speaker = st.selectbox(
-        "Select YOUR PARTNER's name:",
+        "Select YOUR PARTNER's name (분석 대상):",
         partner_speakers,
-        key='partner_speaker'
+        key='partner_speaker',
+        help="분석하고 싶은 상대방 1명을 선택하세요"
     ) if partner_speakers else None
+    
+    # Show what will be excluded
+    if len(speakers) > 2 and partner_speaker:
+        excluded_speakers = [s for s in speakers if s not in [self_speaker, partner_speaker]]
+        if excluded_speakers:
+            st.warning(f"🚫 **제외될 화자**: {', '.join(excluded_speakers)}")
+            excluded_count = sum(speaker_counts[s] for s in excluded_speakers)
+            total_count = sum(speaker_counts.values())
+            st.caption(f"(총 {excluded_count}개 메시지가 분석에서 제외됩니다 - 전체의 {excluded_count/total_count*100:.1f}%)")
     
     st.markdown('---')
     
@@ -536,17 +600,29 @@ elif st.session_state.screen == 'speaker_selection':
                     
                     db.commit()
                     
-                    # Remap speakers to 'self' and 'partner'
+                    # Remap speakers to 'self', 'partner', and 'other'
                     speaker_map = {
                         self_speaker: 'self',
                         partner_speaker: 'partner'
                     }
                     
+                    # Keep all messages, mark others as 'other' for context
+                    other_count = 0
+                    
                     for msg in parsed_messages:
                         if msg['speaker'] in speaker_map:
                             msg['speaker'] = speaker_map[msg['speaker']]
                         else:
-                            msg['speaker'] = 'unknown'
+                            # Keep other speakers as 'other' for context
+                            msg['speaker'] = 'other'
+                            other_count += 1
+                    
+                    # Show info about other speakers if applicable
+                    if other_count > 0:
+                        st.info(f"ℹ️ 그룹채팅 감지: {other_count}개의 다른 화자 메시지가 'other'로 저장됩니다 (맥락 분석에 포함)")
+                    
+                    # Use all messages (including 'other')
+                    messages_to_save = parsed_messages
                     
                     # Save to ChromaDB
                     collection = get_or_create_relationship_collection(relationship.relationship_id)
@@ -554,8 +630,8 @@ elif st.session_state.screen == 'speaker_selection':
                     batch_size = 100
                     progress_bar = st.progress(0)
                     
-                    for i in range(0, len(parsed_messages), batch_size):
-                        batch_messages = parsed_messages[i:i+batch_size]
+                    for i in range(0, len(messages_to_save), batch_size):
+                        batch_messages = messages_to_save[i:i+batch_size]
                         
                         ids = [f"chat_msg_{i+j}_{relationship.relationship_id}" for j in range(len(batch_messages))]
                         documents = [msg['text'] for msg in batch_messages]
@@ -577,7 +653,7 @@ elif st.session_state.screen == 'speaker_selection':
                             metadatas=metadatas
                         )
                         
-                        progress = min((i + batch_size) / len(parsed_messages), 1.0)
+                        progress = min((i + batch_size) / len(messages_to_save), 1.0)
                         progress_bar.progress(progress)
                     
                     progress_bar.empty()
