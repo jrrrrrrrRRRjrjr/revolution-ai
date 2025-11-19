@@ -804,53 +804,80 @@ elif st.session_state.screen == 'analysis':
         
         st.markdown('---')
         
-        # === 4.1. Interactive Emotional Analysis UI ===
-        st.subheader('😢 What do you feel right now?')
+        # === 4.1. Chat-based Emotional Analysis UI ===
+        st.subheader('💬 AI Coach Chat')
+        st.write('대화하듯이 편하게 물어보세요. AI가 당신의 대화 기록을 분석해서 답변해드립니다.')
         
-        # 4.1.1: Text area for emotion input
-        emotion_input = st.text_area(
-            'Describe the emotion you\'re struggling with most after this breakup',
-            placeholder='Example: I feel wronged because I made all the effort but got blamed...',
-            height=150,
-            help='Be specific about what you\'re feeling. The AI will analyze the cause based on your conversation data.'
-        )
+        # Initialize chat history
+        if 'emotion_chat_history' not in st.session_state:
+            st.session_state.emotion_chat_history = [
+                {
+                    'role': 'assistant',
+                    'content': '안녕하세요. 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n어떤 일 때문에 힘드신가요? 편하게 말씀해주세요.'
+                }
+            ]
         
-        # 4.1.3: AI Emotion Analysis Button
-        if st.button('🔍 Analyze Emotion Cause', type='primary', disabled=not emotion_input.strip(), use_container_width=True):
-            with st.spinner('🤖 Analyzing your emotion based on conversation data...'):
-                from database.chroma_db import search_conversation_memory
-                
-                # Search for relevant conversations
-                relationship_id = st.session_state.onboarding_data['relationship_id']
-                relevant_convos = search_conversation_memory(
-                    relationship_id=relationship_id,
-                    query=emotion_input,
-                    n_results=10
-                )
-                
-                # Build context from search results with STRICT speaker labels
-                context_messages = []
-                if relevant_convos:
-                    for result in relevant_convos:
-                        doc = result['text']
-                        metadata = result['metadata']
-                        speaker_label = metadata['speaker']  # 'self' or 'partner'
-                        timestamp = metadata.get('timestamp', '')
-                        # Format: [SELF] or [PARTNER] with timestamp for clarity
-                        context_messages.append(f"[{speaker_label.upper()}] ({timestamp}): {doc}")
-                
-                # Create AI prompt (v5.0 - Few-Shot Learning + Core Identity)
-                context_text = "\n".join(context_messages) if context_messages else "No relevant conversations found."
-                
-                prompt = f"""{CORE_AI_IDENTITY}
+        # Display chat messages
+        for message in st.session_state.emotion_chat_history:
+            with st.chat_message(message['role']):
+                st.markdown(message['content'])
+        
+        # Chat input
+        user_input = st.chat_input('예: 나만 노력한 것 같아서 억울해요...')
+        
+        if user_input:
+            # Add user message to chat history
+            st.session_state.emotion_chat_history.append({
+                'role': 'user',
+                'content': user_input
+            })
+            
+            # Display user message immediately
+            with st.chat_message('user'):
+                st.markdown(user_input)
+            
+            # Generate AI response
+            with st.chat_message('assistant'):
+                with st.spinner('🤖 대화 기록을 분석하고 있습니다...'):
+                    from database.chroma_db import search_conversation_memory
+                    
+                    # Search for relevant conversations
+                    relationship_id = st.session_state.onboarding_data['relationship_id']
+                    relevant_convos = search_conversation_memory(
+                        relationship_id=relationship_id,
+                        query=user_input,
+                        n_results=10
+                    )
+                    
+                    # Build context from search results with STRICT speaker labels
+                    context_messages = []
+                    if relevant_convos:
+                        for result in relevant_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
+                            speaker_label = metadata['speaker']  # 'self' or 'partner'
+                            timestamp = metadata.get('timestamp', '')
+                            # Format: [SELF] or [PARTNER] with timestamp for clarity
+                            context_messages.append(f"[{speaker_label.upper()}] ({timestamp}): {doc}")
+                    
+                    # Build conversation history for context
+                    chat_context = "\n".join([
+                        f"{'User' if msg['role'] == 'user' else 'AI Coach'}: {msg['content']}"
+                        for msg in st.session_state.emotion_chat_history[:-1]  # Exclude current message
+                    ])
+                    
+                    # Create AI prompt (v5.0 - Few-Shot Learning + Core Identity)
+                    context_text = "\n".join(context_messages) if context_messages else "No relevant conversations found."
+                    
+                    prompt = f"""{CORE_AI_IDENTITY}
 
 Your job is to find BEHAVIOR PATTERNS in conversation data, NOT to interpret emotions from keywords.
 
 🎯 CRITICAL RULES (v5.0):
 
 1. SPEAKER IDENTITY (NEVER CONFUSE):
-   - [SELF] = The user (Jo, 조자룡)
-   - [PARTNER] = Their ex-partner (영쟝❤️)
+   - [SELF] = The user
+   - [PARTNER] = Their ex-partner
    - NEVER swap these labels
 
 2. PATTERN-BASED ANALYSIS (NOT KEYWORD-BASED):
@@ -868,115 +895,72 @@ Your job is to find BEHAVIOR PATTERNS in conversation data, NOT to interpret emo
 
 ---
 
-📚 FEW-SHOT EXAMPLES (Learn from these):
+PREVIOUS CONVERSATION CONTEXT:
+{chat_context if chat_context else "첫 질문입니다."}
 
-❌ BAD EXAMPLE (Don't do this):
-User emotion: "나만 노력한 것 같아서 억울해"
-Bad AI: "분석 결과: '억울함'이 감지됩니다. 근거: ';;', '힘들었어'. 하지만 노력과의 연관성은 없습니다."
-Why bad: Only searched for emotion keywords, missed the behavior pattern
+USER'S CURRENT QUESTION:
+{user_input}
 
-✅ GOOD EXAMPLE (Do this):
-User emotion: "나만 노력한 것 같아서 억울해"
-Good AI: "Jo님의 '나만 노력했다'는 감정은 데이터로 명확히 뒷받침됩니다.
-
-근거 1 - Jo님(SELF)의 적극적 행동:
-- [SELF]: '우리 줌공할까?'
-- [SELF]: '드레스덴 크리스마스 마켓 가자'
-- [SELF]: '카를교 사전답사'
-- [SELF]: 대화 시작 빈도 90%
-
-근거 2 - 상대방(PARTNER)의 소극적 반응:
-- [PARTNER]: '굳이' (만남 거부)
-- [PARTNER]: 대화 시작 빈도 10%
-- [PARTNER]: 약속 취소 반복
-
-결론: Jo님의 감정은 '노력 불균형(9:1)'이라는 객관적 데이터로 증명됩니다."
-
----
-
-❌ BAD EXAMPLE 2:
-User emotion: "상대방이 거짓말한 것 같아"
-Bad AI: "거짓말 증거는 데이터에 없습니다."
-Why bad: Didn't search for BEHAVIOR patterns of dishonesty
-
-✅ GOOD EXAMPLE 2:
-User emotion: "상대방이 거짓말한 것 같아"
-Good AI: "Jo님의 불신은 근거 있는 직감이었습니다.
-
-근거 1 - 인스타 숨김 사건:
-- [PARTNER]: '오류난거아니먀? 나숨긴적업서ㅜ'
-- [PARTNER]: '솔직히 말하면 친친으로는 몇번 올린적 있긴한데'
-(처음엔 부정, 나중에 인정)
-
-근거 2 - 일방적 소통 단절:
-- [SELF]: 보이스톡 시도 반복
-- [PARTNER]: 응답 없음 → 카톡으로 일방적 이별 통보
-
-결론: Jo님의 불안감은 '과도한 의심'이 아니라 상대방의 신뢰 훼손 행동에 대한 정당한 반응이었습니다."
-
----
-
-NOW ANALYZE THIS:
-
-USER'S EMOTION:
-{emotion_input}
-
-CONVERSATION EVIDENCE:
+CONVERSATION EVIDENCE (from actual chat logs):
 {context_text}
 
 ---
 
 YOUR TASK:
-1. Identify what BEHAVIOR PATTERN this emotion relates to (not just keywords)
-2. Search the evidence for that behavior pattern
-3. Cite specific messages with [SELF]/[PARTNER] labels
-4. Give a data-driven conclusion
+1. Answer the user's question naturally in a conversational tone
+2. Identify what BEHAVIOR PATTERN this relates to (not just keywords)
+3. Search the evidence for that behavior pattern
+4. Cite specific messages with [SELF]/[PARTNER] labels
+5. Give a data-driven conclusion
 
-Follow the GOOD EXAMPLES above. Write in Korean with a friendly but evidence-based tone."""
+Write in Korean with a friendly, conversational but evidence-based tone. Keep responses concise (3-4 paragraphs max)."""
 
-                # Check if result is already cached
-                cache_key = f"emotion_analysis_{emotion_input[:50]}"
-                if cache_key not in st.session_state:
                     # Call Gemini API with rate limiting
                     response = call_llm_with_rate_limit(prompt)
-                    st.session_state[cache_key] = response.content
+                    ai_response = response.content
+                    
+                    # Display AI response
+                    st.markdown(ai_response)
+                    
+                    # Add evidence button
+                    with st.expander('📝 실제 대화 증거 보기', expanded=False):
+                        if context_messages:
+                            st.caption(f'💬 총 {len(context_messages)}개의 대화가 분석에 사용되었습니다.')
+                            st.markdown('---')
+                            for i, msg in enumerate(context_messages, 1):
+                                if msg.startswith('[SELF]'):
+                                    st.markdown(f"**{i}.** 🟦 `YOU` {msg[6:]}")
+                                elif msg.startswith('[PARTNER]'):
+                                    st.markdown(f"**{i}.** 🟥 `PARTNER` {msg[9:]}")
+                                else:
+                                    st.markdown(f"**{i}.** {msg}")
+                                
+                                if i < len(context_messages):
+                                    st.markdown('')
+                        else:
+                            st.info('⚠️ 관련된 대화 내용을 찾을 수 없습니다.')
                     
                     # Save to database
                     try:
-                        user_id = st.session_state.onboarding_data.get('user_id', 1)  # Default to 1 if not logged in
+                        user_id = st.session_state.onboarding_data.get('user_id', 1)
                         save_analysis_to_db(
                             relationship_id=relationship_id,
                             user_id=user_id,
                             analysis_type='emotion_cause',
-                            ai_response=response.content,
-                            query_input=emotion_input
+                            ai_response=ai_response,
+                            query_input=user_input
                         )
                     except Exception as e:
                         pass  # Silently fail if DB save fails
-                
-                # Display result (from cache or fresh)
-                st.markdown('---')
-                st.subheader('🧠 Emotion Cause Analysis')
-                st.markdown(st.session_state[cache_key])
-                
-                # Show evidence used with enhanced formatting
-                with st.expander('📝 실제 대화 증거 보기 (View Conversation Evidence)', expanded=False):
-                    if context_messages:
-                        st.caption(f'💬 총 {len(context_messages)}개의 대화 내용이 분석에 사용되었습니다.')
-                        st.markdown('---')
-                        for i, msg in enumerate(context_messages, 1):
-                            # Parse message format: [SPEAKER] (timestamp): text
-                            if msg.startswith('[SELF]'):
-                                st.markdown(f"**{i}.** 🟦 `YOU` {msg[6:]}")
-                            elif msg.startswith('[PARTNER]'):
-                                st.markdown(f"**{i}.** 🟥 `PARTNER` {msg[9:]}")
-                            else:
-                                st.markdown(f"**{i}.** {msg}")
-                            
-                            if i < len(context_messages):
-                                st.markdown('')  # spacing
-                    else:
-                        st.info('⚠️ 이 감정과 관련된 대화 내용을 찾을 수 없습니다.')
+            
+            # Add AI response to chat history
+            st.session_state.emotion_chat_history.append({
+                'role': 'assistant',
+                'content': ai_response
+            })
+            
+            # Rerun to update chat display
+            st.rerun()
         
         st.markdown('---')
         
