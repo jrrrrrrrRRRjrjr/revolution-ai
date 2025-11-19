@@ -812,15 +812,25 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
         st.markdown('---')
         
         # === 4.1. Interactive Emotional Analysis UI (Chat Interface) ===
-        st.subheader('😢 최근 어떤 일로 갈등이 생겼나요?')
-        st.caption('대화하듯이 편하게 물어보세요. AI가 당신의 관계 데이터를 분석해드립니다.')
+        col_header, col_reset = st.columns([4, 1])
+        with col_header:
+            st.subheader('😢 최근 어떤 일로 갈등이 생겼나요?')
+            st.caption('대화하듯이 편하게 물어보세요. AI가 당신의 관계 데이터를 분석해드립니다.')
+        with col_reset:
+            if st.button('🔄 대화 초기화', help='채팅 기록을 모두 지우고 처음부터 다시 시작합니다'):
+                st.session_state.emotion_chat_history = [{
+                    'role': 'assistant',
+                    'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 분석해드리겠습니다.\n\n**예시:**\n- "나만 노력한 것 같아서 억울해요"\n- "상대방이 거짓말한 것 같아요"\n- "왜 이별하게 됐는지 모르겠어요"'
+                }]
+                st.rerun()
         
-        # Initialize chat history
-        if 'emotion_chat_history' not in st.session_state:
+        # Initialize chat history (check relationship_id to reset on new upload)
+        if 'emotion_chat_history' not in st.session_state or st.session_state.get('last_relationship_id') != relationship_id:
             st.session_state.emotion_chat_history = [{
                 'role': 'assistant',
                 'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 분석해드리겠습니다.\n\n**예시:**\n- "나만 노력한 것 같아서 억울해요"\n- "상대방이 거짓말한 것 같아요"\n- "왜 이별하게 됐는지 모르겠어요"'
             }]
+            st.session_state.last_relationship_id = relationship_id
         
         # Display chat messages
         for message in st.session_state.emotion_chat_history:
