@@ -991,11 +991,10 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     relationship_id = st.session_state.onboarding_data['relationship_id']
                     
                     # Search for ALL conversations (no speaker filter) to see interaction patterns
-                    # Attachment patterns: anxiety, avoidance, conflict, distance, pursuit
-                    attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장 바빠 피곤 나중에 혼자 필요 공간 부담 답답 통화 전화 보이스톡"
+                    # Use user's question as query to get relevant conversations
                     all_convos = search_conversation_memory(
                         relationship_id=relationship_id,
-                        query=attachment_query,
+                        query=user_input,  # Use user's question instead of predefined keywords
                         n_results=50  # Enough to see interaction patterns over time
                     )
                     
