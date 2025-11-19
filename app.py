@@ -604,7 +604,10 @@ elif st.session_state.screen == 'speaker_selection':
             st.warning(f"🚫 **제외될 화자**: {', '.join(excluded_speakers)}")
             excluded_count = sum(speaker_counts[s] for s in excluded_speakers)
             total_count = sum(speaker_counts.values())
-            st.caption(f"(총 {excluded_count}개 메시지가 분석에서 제외됩니다 - 전체의 {excluded_count/total_count*100:.1f}%)")
+            if total_count > 0:
+                st.caption(f"(총 {excluded_count}개 메시지가 분석에서 제외됩니다 - 전체의 {excluded_count/total_count*100:.1f}%)")
+            else:
+                st.caption(f"(총 {excluded_count}개 메시지가 분석에서 제외됩니다)")
     
     st.markdown('---')
     
@@ -694,6 +697,12 @@ elif st.session_state.screen == 'speaker_selection':
                     
                     # Use all messages (including 'other')
                     messages_to_save = parsed_messages
+                    
+                    if not messages_to_save:
+                        st.error('⚠️ 저장할 메시지가 없습니다.')
+                        db.rollback()
+                        db.close()
+                        return
                     
                     # Save to ChromaDB
                     collection = get_or_create_relationship_collection(relationship.relationship_id)
