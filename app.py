@@ -996,7 +996,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     all_convos = search_conversation_memory(
                         relationship_id=relationship_id,
                         query=attachment_query,
-                        n_results=15  # Enough to see interaction patterns
+                        n_results=50  # Enough to see interaction patterns over time
                     )
                     
                     # Build context with speaker labels to show interaction
