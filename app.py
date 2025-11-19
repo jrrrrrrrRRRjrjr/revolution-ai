@@ -819,7 +819,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
         if 'emotion_chat_history' not in st.session_state:
             st.session_state.emotion_chat_history = [{
                 'role': 'assistant',
-                'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 분석해드리겠습니다.\n\n예시:\n- "나만 노력한 것 같아서 억울해요"\n- "상대방이 거짓말한 것 같아요"\n- "왜 이별하게 됐는지 모르겠어요"'
+                'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 설명해드릴게요.'
             }]
         
         # Display chat messages
@@ -882,24 +882,18 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 self_context_text = "\n".join(self_attachment_context) if self_attachment_context else "No data"
                 partner_context_text = "\n".join(partner_attachment_context) if partner_attachment_context else "No data"
                 
-                # AI Prompt for Attachment Style Analysis
-                attachment_prompt = f"""당신은 애착 이론 전문가입니다. 대화 데이터를 기반으로 두 사람의 애착 유형을 분석하세요.
+                # AI Prompt for Attachment Style Analysis (with empathy first)
+                attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
 
-🎯 애착 유형 (Attachment Styles):
-
-1. **불안형 (Anxious)**
-   - 신호: 잦은 연락 확인, "어디야?", "뭐해?", 답장 걱정, 외로움 표현
-   - 행동: 상대방의 반응에 민감, 관계 확인 욕구
-
-2. **회피형 (Avoidant)**
-   - 신호: "바빠", "피곤해", "혼자 있고 싶어", 거리두기, 답장 지연
-   - 행동: 독립성 강조, 친밀감 회피, 감정 표현 최소화
-
-3. **안정형 (Secure)**
-   - 신호: 균형잡힌 소통, 감정 표현 자연스러움, 갈등 건설적 해결
-   - 행동: 상대 존중하며 자신의 욕구도 표현
+🎯 당신의 역할:
+1. 먼저 사용자의 감정에 진심으로 공감하기
+2. 애착 유형 분석을 통해 관계 패턴 이해 돕기
+3. 증거 기반으로 객관적이면서도 따뜻하게 설명하기
 
 ---
+
+**사용자가 말한 감정:**
+"{user_input}"
 
 **본인(SELF)의 대화 패턴:**
 {self_context_text}
@@ -909,35 +903,57 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 
 ---
 
-**분석 요구사항:**
+**답변 형식 (반드시 이 순서로):**
 
-다음 형식으로 답변하세요:
+[1단계: 공감]
+사용자의 감정에 진심으로 공감하는 1-2문장
+예: "정말 힘드셨겠어요. 노력한 만큼 인정받지 못했다는 느낌, 충분히 억울하실 수 있습니다."
+
+[2단계: 애착 유형 소개]
+"두 분의 애착 유형을 먼저 분석해드릴게요. 이걸 이해하면 왜 이런 갈등이 생겼는지 보일 거예요."
+
+---
 
 ### 👤 본인의 애착 유형
-**유형**: [불안형/회피형/안정형]
 
-**근거**:
-- [SELF] 메시지 인용 1
-- [SELF] 메시지 인용 2
-- [SELF] 메시지 인용 3
+**[이름] - [불안형/회피형/안정형] 애착**
 
-**해석**: (1-2문장으로 패턴 설명)
+[이름]님은 [유형]의 특성을 보입니다:
+
+**주요 패턴:**
+1. [패턴1]: [구체적 설명] ([SELF] 메시지 예시)
+2. [패턴2]: [구체적 설명] ([SELF] 메시지 예시)
+3. [패턴3]: [구체적 설명] ([SELF] 메시지 예시)
 
 ---
 
 ### 💑 상대방의 애착 유형
-**유형**: [불안형/회피형/안정형]
 
-**근거**:
-- [PARTNER] 메시지 인용 1
-- [PARTNER] 메시지 인용 2
-- [PARTNER] 메시지 인용 3
+**[상대방이름] - [불안형/회피형/안정형] 애착**
 
-**해석**: (1-2문장으로 패턴 설명)
+[상대방이름]님은 [유형]의 특성을 나타냅니다:
+
+**주요 패턴:**
+1. [패턴1]: [구체적 설명] ([PARTNER] 메시지 예시)
+2. [패턴2]: [구체적 설명] ([PARTNER] 메시지 예시)
+3. [패턴3]: [구체적 설명] ([PARTNER] 메시지 예시)
 
 ---
 
-한국어로 작성하고, 반드시 실제 메시지를 인용하세요."""
+### 💔 관계 역학 분석
+
+이 커플은 [불안형-회피형/안정형-불안형 등] 조합으로, [간단한 악순환 패턴 설명].
+
+[사용자의 감정이 왜 정당한지, 또는 어떤 관점에서 이해할 수 있는지 1-2문장으로 마무리]
+
+---
+
+**작성 시 주의사항:**
+- 실제 대화 메시지를 정확히 인용할 것
+- 본인 이름은 "SELF" 메타데이터에서 추출
+- 상대방 이름은 "PARTNER" 메타데이터에서 추출
+- 따뜻하지만 객관적인 톤 유지
+- 한국어로 작성"""
 
                 # Call LLM for attachment analysis
                 attachment_response = call_llm_with_rate_limit(attachment_prompt)
