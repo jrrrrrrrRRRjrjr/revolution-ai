@@ -1094,49 +1094,40 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     context_text = "\n".join(partner_context) if partner_context else "No partner messages found."
                     
                     # AI Prompt for partner analysis
-                    prompt = f"""You are analyzing the PARTNER's behavioral patterns in this breakup.
+                    prompt = f"""당신은 상대방의 행동 패턴을 분석하는 연애 상담 AI입니다.
 
-🎯 ANALYSIS GOAL:
-Identify patterns in the partner's behavior that may have contributed to relationship difficulties.
+🎯 분석 목표:
+대화 데이터를 기반으로 상대방의 행동 특징을 파악합니다.
 
-🔍 FOCUS AREAS:
-1. Communication patterns (responsive vs. avoidant)
-2. Meeting/effort patterns (initiating vs. passive)
-3. Emotional expression level (expressive vs. reserved)
-4. Commitment patterns (reliable vs. inconsistent)
-
-⚠️ CRITICAL RULES:
-- Use ONLY the [PARTNER] messages below
-- Cite specific messages as evidence
-- Be objective, not judgmental
-- If evidence is insufficient, say "데이터가 불충분합니다"
+⚠️ 중요 규칙:
+- 대화 패턴만 보고 특징 설명 (메시지 인용 금지)
+- 객관적이고 비판단적인 톤
+- 데이터가 부족하면 "데이터가 불충분합니다" 표시
 
 ---
 
-PARTNER'S MESSAGES (15 most relevant):
+상대방의 대화 데이터:
 {context_text}
 
 ---
 
-YOUR TASK:
-Analyze the partner's behavioral patterns and provide:
+**답변 형식:**
 
-1. **소통 패턴** (Communication Pattern)
-   - How did they respond to messages?
-   - Evidence with citations
+### 📱 소통 패턴
+[2-3문장으로 응답 스타일, 빈도, 태도 설명]
 
-2. **노력/참여도** (Effort/Engagement)
-   - Did they initiate meetings/activities?
-   - Evidence with citations
+### 💪 노력/참여도
+[2-3문장으로 만남 제안, 활동 참여, 관계 투자 설명]
 
-3. **감정 표현 수준** (Emotional Expression Level)
-   - Were they emotionally present?
-   - Evidence with citations
+### 💭 감정 표현 수준
+[2-3문장으로 감정 공유, 친밀감 표현 정도 설명]
 
-4. **종합 평가** (Overall Assessment)
-   - What patterns emerge from the data?
+### 📊 종합 평가
+[2-3문장으로 전체적인 패턴 요약]
 
-Format each section clearly. Write in Korean. Be evidence-based and objective."""
+---
+
+한국어로 작성하고, 구체적 메시지 인용 없이 패턴만 설명하세요."""
 
                     # Check if result is already cached
                     cache_key = f"partner_behavior_{relationship_id}"
@@ -1221,50 +1212,41 @@ Format each section clearly. Write in Korean. Be evidence-based and objective.""
                     context_text = "\n".join(self_context) if self_context else "No self messages found."
                     
                     # AI Prompt for self analysis
-                    prompt = f"""You are analyzing the USER's (SELF's) behavioral patterns in this relationship.
+                    prompt = f"""당신은 사용자의 행동 패턴을 분석하는 연애 상담 AI입니다.
 
-🎯 ANALYSIS GOAL:
-Identify patterns in the user's behavior - both positive contributions AND areas for growth in future relationships.
+🎯 분석 목표:
+사용자의 긍정적 기여와 성장 가능성을 균형있게 파악합니다.
 
-🔍 FOCUS AREAS:
-1. Communication style (assertive vs. passive vs. anxious)
-2. Effort patterns (initiating, planning, caring)
-3. Emotional expression (healthy vs. excessive worry)
-4. Boundary setting (clear vs. unclear)
-
-⚠️ CRITICAL RULES:
-- Use ONLY the [SELF] messages below
-- Cite specific messages as evidence
-- Be balanced: acknowledge efforts AND growth areas
-- Be constructive, not harsh
-- If evidence is insufficient, say "데이터가 불충분합니다"
+⚠️ 중요 규칙:
+- 대화 패턴만 보고 특징 설명 (메시지 인용 금지)
+- 지지적이고 건설적인 톤
+- 긍정적 측면과 성장 포인트 균형있게
+- 데이터가 부족하면 "데이터가 불충분합니다" 표시
 
 ---
 
-USER'S MESSAGES (15 most relevant):
+본인의 대화 데이터:
 {context_text}
 
 ---
 
-YOUR TASK:
-Analyze the user's behavioral patterns and provide:
+**답변 형식:**
 
-1. **긍정적 측면** (Positive Contributions)
-   - What efforts did they make?
-   - Evidence with citations
+### 💚 긍정적 측면
+[2-3문장으로 노력, 배려, 애정 표현 등 강점 설명]
 
-2. **소통 스타일** (Communication Style)
-   - How did they express needs/feelings?
-   - Evidence with citations
+### 💬 소통 스타일
+[2-3문장으로 감정/욕구 표현 방식 설명]
 
-3. **성장 포인트** (Areas for Growth)
-   - Patterns that might need adjustment in future relationships
-   - Evidence with citations (be gentle!)
+### 🌱 성장 포인트
+[2-3문장으로 다음 연애에서 조정하면 좋을 패턴 설명 - 부드럽게!]
 
-4. **다음 연애를 위한 조언** (Advice for Future Relationships)
-   - Based on the data, what to keep doing and what to adjust
+### 💡 다음 연애를 위한 조언
+[2-3문장으로 유지할 점과 개선할 점 요약]
 
-Format each section clearly. Write in Korean with a supportive, constructive tone. Balance acknowledgment with growth."""
+---
+
+한국어로 작성하고, 구체적 메시지 인용 없이 패턴만 설명하세요. 따뜻하고 격려하는 톤을 유지하세요."""
 
                     # Check if result is already cached
                     cache_key = f"self_behavior_{relationship_id}"
