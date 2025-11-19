@@ -174,6 +174,27 @@ def save_analysis_to_db(relationship_id: int, user_id: int, analysis_type: str, 
     finally:
         session.close()
 
+def is_valid_speaker(speaker):
+    """Validate if a speaker name is legitimate (not a false positive)"""
+    if not speaker or len(speaker) < 2 or len(speaker) > 30:
+        return False
+    
+    # Filter out common false positives
+    false_positive_patterns = [
+        r'^https?:',  # URLs
+        r'^\d{1,2}:\d{2}',  # Timestamps
+        r'^저장한\s*날짜',  # "저장한 날짜"
+        r'^\d{4}[./\-]\d{1,2}[./\-]\d{1,2}',  # Dates
+        r'^[\d\s:\-/.,]+$',  # Only numbers and punctuation
+        r'^사진$|^Photo$|^이미지$|^동영상$',  # Media
+    ]
+    
+    for pattern in false_positive_patterns:
+        if re.match(pattern, speaker, re.IGNORECASE):
+            return False
+    
+    return True
+
 def parse_conversation_file(file_content):
     """
     Universal conversation parser supporting multiple chat formats:
@@ -409,7 +430,7 @@ if st.session_state.screen == 'home':
         
         # Parse sample conversation
         parsed_messages = parse_conversation_file(sample_conversation)
-        speakers = list(set([msg['speaker'] for msg in parsed_messages if msg['speaker']]))
+        speakers = list(set([msg['speaker'] for msg in parsed_messages if msg['speaker'] and is_valid_speaker(msg['speaker'])]))
         
         # Pre-fill test data with correct structure
         st.session_state.temp_parsed_data = {
@@ -492,7 +513,7 @@ elif st.session_state.screen == 'onboarding':
                     if not parsed_messages:
                         st.error('⚠️ Could not detect valid conversation format.')
                     else:
-                        speakers = list(set([msg['speaker'] for msg in parsed_messages if msg['speaker']]))
+                        speakers = list(set([msg['speaker'] for msg in parsed_messages if msg['speaker'] and is_valid_speaker(msg['speaker'])]))
                         if len(speakers) < 2:
                             st.error('⚠️ Could not detect 2 distinct speakers. Please check file format.')
                         else:
