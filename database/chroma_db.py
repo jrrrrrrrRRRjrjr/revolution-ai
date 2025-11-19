@@ -28,19 +28,27 @@ def get_chroma_client():
     return client
 
 
-def get_or_create_relationship_collection(relationship_id: int):
+def get_or_create_relationship_collection(relationship_id: int, reset: bool = False):
     """
     Get or create a collection for a specific relationship
     Collection name format: relationship_chats_{relationship_id}
     
     Args:
         relationship_id: The unique ID of the relationship
+        reset: If True, delete existing collection and create new one
         
     Returns:
         ChromaDB collection object
     """
     client = get_chroma_client()
     collection_name = f"relationship_chats_{relationship_id}"
+    
+    # If reset requested, delete existing collection first
+    if reset:
+        try:
+            client.delete_collection(name=collection_name)
+        except:
+            pass  # Collection might not exist yet
     
     # Create or get collection with metadata schema
     collection = client.get_or_create_collection(

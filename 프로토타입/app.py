@@ -716,8 +716,8 @@ elif st.session_state.screen == 'speaker_selection':
                         db.rollback()
                         st.session_state.is_saving = False
                     else:
-                        # Save to ChromaDB (reset=True to clear old data for this relationship)
-                        collection = get_or_create_relationship_collection(relationship.relationship_id, reset=True)
+                        # Save to ChromaDB
+                        collection = get_or_create_relationship_collection(relationship.relationship_id)
                         
                         batch_size = 100
                         progress_bar = st.progress(0)
@@ -787,7 +787,7 @@ elif st.session_state.screen == 'speaker_selection':
                 finally:
                     db.close()
 
-elif st.session_state.screen == 'analysis': #Analysis Screen
+elif st.session_state.screen == 'analysis':
     st.title(f'(R)Evolution - {st.session_state.mode} Analysis')
     
     # Get stored data
@@ -811,166 +811,179 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
         
         st.markdown('---')
         
-        # === 4.1. Interactive Emotional Analysis UI (Chat Interface) ===
-        st.subheader('😢 최근 어떤 일로 갈등이 생겼나요?')
-        st.caption('대화하듯이 편하게 물어보세요. AI가 당신의 관계 데이터를 분석해드립니다.')
+        # === 4.1. Interactive Emotional Analysis UI ===
+        st.subheader('😢 What do you feel right now?')
         
-        # Initialize chat history
-        if 'emotion_chat_history' not in st.session_state:
-            st.session_state.emotion_chat_history = [{
-                'role': 'assistant',
-                'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 분석해드리겠습니다.\n\n**예시:**\n- "나만 노력한 것 같아서 억울해요"\n- "상대방이 거짓말한 것 같아요"\n- "왜 이별하게 됐는지 모르겠어요"'
-            }]
+        # 4.1.1: Text area for emotion input
+        emotion_input = st.text_area(
+            'Describe the emotion you\'re struggling with most after this breakup',
+            placeholder='Example: I feel wronged because I made all the effort but got blamed...',
+            height=150,
+            help='Be specific about what you\'re feeling. The AI will analyze the cause based on your conversation data.'
+        )
         
-        # Display chat messages
-        for message in st.session_state.emotion_chat_history:
-            with st.chat_message(message['role']):
-                st.markdown(message['content'])
-        
-        # Chat input
-        user_input = st.chat_input('예: 나만 노력한 것 같아서 억울해요...')
-        
-        if user_input:
-            # Add user message to chat
-            st.session_state.emotion_chat_history.append({
-                'role': 'user',
-                'content': user_input
-            })
-            
-            # Analyze with AI
-            with st.spinner('🧠 두 사람의 애착 유형을 분석하고 있습니다...'):
+        # 4.1.3: AI Emotion Analysis Button
+        if st.button('🔍 Analyze Emotion Cause', type='primary', disabled=not emotion_input.strip(), use_container_width=True):
+            with st.spinner('🤖 Analyzing your emotion based on conversation data...'):
                 from database.chroma_db import search_conversation_memory
                 
+                # Search for relevant conversations
                 relationship_id = st.session_state.onboarding_data['relationship_id']
-                
-                # Search for attachment-related patterns
-                # Self patterns: anxiety, pursuit, worry
-                self_attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장"
-                self_convos = search_conversation_memory(
+                relevant_convos = search_conversation_memory(
                     relationship_id=relationship_id,
-                    query=self_attachment_query,
-                    n_results=15,
-                    speaker_filter='self'
+                    query=emotion_input,
+                    n_results=10
                 )
                 
-                # Partner patterns: avoidance, distance, independence
-                partner_attachment_query = "바빠 피곤 나중에 혼자 필요 공간 부담 답답"
-                partner_convos = search_conversation_memory(
-                    relationship_id=relationship_id,
-                    query=partner_attachment_query,
-                    n_results=15,
-                    speaker_filter='partner'
-                )
-                
-                # Build context
-                self_attachment_context = []
-                if self_convos:
-                    for result in self_convos:
+                # Build context from search results with STRICT speaker labels
+                context_messages = []
+                if relevant_convos:
+                    for result in relevant_convos:
                         doc = result['text']
                         metadata = result['metadata']
+                        speaker_label = metadata['speaker']  # 'self' or 'partner'
                         timestamp = metadata.get('timestamp', '')
-                        self_attachment_context.append(f"[SELF] ({timestamp}): {doc}")
+                        # Format: [SELF] or [PARTNER] with timestamp for clarity
+                        context_messages.append(f"[{speaker_label.upper()}] ({timestamp}): {doc}")
                 
-                partner_attachment_context = []
-                if partner_convos:
-                    for result in partner_convos:
-                        doc = result['text']
-                        metadata = result['metadata']
-                        timestamp = metadata.get('timestamp', '')
-                        partner_attachment_context.append(f"[PARTNER] ({timestamp}): {doc}")
+                # Create AI prompt (v5.0 - Few-Shot Learning + Core Identity)
+                context_text = "\n".join(context_messages) if context_messages else "No relevant conversations found."
                 
-                self_context_text = "\n".join(self_attachment_context) if self_attachment_context else "No data"
-                partner_context_text = "\n".join(partner_attachment_context) if partner_attachment_context else "No data"
-                
-                # AI Prompt for Attachment Style Analysis (with empathy first)
-                attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
+                prompt = f"""{CORE_AI_IDENTITY}
 
-⚠️ 중요: 아래 형식을 정확히 따라주세요. "애착 이론 전문가로서..." 같은 말로 시작하지 마세요!
+Your job is to find BEHAVIOR PATTERNS in conversation data, NOT to interpret emotions from keywords.
 
----
+🎯 CRITICAL RULES (v5.0):
 
-**사용자가 말한 감정:**
-"{user_input}"
+1. SPEAKER IDENTITY (NEVER CONFUSE):
+   - [SELF] = The user (Jo, 조자룡)
+   - [PARTNER] = Their ex-partner (영쟝❤️)
+   - NEVER swap these labels
 
-**본인(SELF)의 대화 패턴:**
-{self_context_text}
-
-**상대방(PARTNER)의 대화 패턴:**
-{partner_context_text}
-
----
-
-**답변 형식 (정확히 이대로 작성):**
-
-[먼저 공감부터]
-{user_input}라고 하셨군요. 정말 힘드셨겠어요. (1-2문장으로 진심 어린 공감)
-
-두 분의 애착 유형을 먼저 분석해드릴게요. 이걸 이해하면 왜 이런 갈등이 생겼는지 보일 거예요.
-
----
-
-### 👤 본인의 애착 유형
-
-**Jo (또는 본인 이름) - 불안형 애착**
-
-Jo님은 불안형 애착의 특성을 보입니다:
-
-**주요 패턴:**
-1. **과도한 연락 시도**: 상대방이 답장하지 않을 때 연속으로 메시지나 전화 시도 
-   - 예시: [SELF] 실제 메시지 인용
+2. PATTERN-BASED ANALYSIS (NOT KEYWORD-BASED):
+   - If user says "나만 노력한 것 같아" (I feel like only I tried)
+     → Search for BEHAVIOR: meeting proposals, conversation initiations, effort patterns
+     → DO NOT just search for "노력" or "슬퍼" keywords
    
-2. **즉각적인 불안 반응**: 작은 신호에도 민감하게 반응하며 관계를 확인하려는 모습
-   - 예시: [SELF] 실제 메시지 인용
-   
-3. **관계 확인 욕구**: "어디야?", "뭐해?" 등으로 지속적으로 상대방 상태 체크
-   - 예시: [SELF] 실제 메시지 인용
+   - If user says "억울해" (I feel wronged)
+     → Search for BEHAVIOR: lies, hiding, broken promises, unilateral decisions
+     → DO NOT just search for "억울" keyword
+
+3. CITATION MANDATE:
+   - Format: "근거: [SELF]: (exact message)" or "근거: [PARTNER]: (exact message)"
+   - NO analysis without direct quotes
 
 ---
 
-### 💑 상대방의 애착 유형
+📚 FEW-SHOT EXAMPLES (Learn from these):
 
-**영쟝❤️ (또는 상대방 이름) - 회피형 애착**
+❌ BAD EXAMPLE (Don't do this):
+User emotion: "나만 노력한 것 같아서 억울해"
+Bad AI: "분석 결과: '억울함'이 감지됩니다. 근거: ';;', '힘들었어'. 하지만 노력과의 연관성은 없습니다."
+Why bad: Only searched for emotion keywords, missed the behavior pattern
 
-영쟝❤️님은 회피형 애착의 특성을 나타냅니다:
+✅ GOOD EXAMPLE (Do this):
+User emotion: "나만 노력한 것 같아서 억울해"
+Good AI: "Jo님의 '나만 노력했다'는 감정은 데이터로 명확히 뒷받침됩니다.
 
-**주요 패턴:**
-1. **거리두기**: "바빠", "피곤해"로 대화나 만남 회피
-   - 예시: [PARTNER] 실제 메시지 인용
-   
-2. **일방적 종료**: 직접 대면을 피하고 메시지로 이별 통보
-   - 예시: [PARTNER] 실제 메시지 인용
-   
-3. **감정 표현 최소화**: 구체적 이유 설명 없이 간단히 정리
-   - 예시: [PARTNER] 실제 메시지 인용
+근거 1 - Jo님(SELF)의 적극적 행동:
+- [SELF]: '우리 줌공할까?'
+- [SELF]: '드레스덴 크리스마스 마켓 가자'
+- [SELF]: '카를교 사전답사'
+- [SELF]: 대화 시작 빈도 90%
+
+근거 2 - 상대방(PARTNER)의 소극적 반응:
+- [PARTNER]: '굳이' (만남 거부)
+- [PARTNER]: 대화 시작 빈도 10%
+- [PARTNER]: 약속 취소 반복
+
+결론: Jo님의 감정은 '노력 불균형(9:1)'이라는 객관적 데이터로 증명됩니다."
 
 ---
 
-### 💔 관계 역학 분석
+❌ BAD EXAMPLE 2:
+User emotion: "상대방이 거짓말한 것 같아"
+Bad AI: "거짓말 증거는 데이터에 없습니다."
+Why bad: Didn't search for BEHAVIOR patterns of dishonesty
 
-이 커플은 전형적인 **불안형-회피형 악순환**을 보여줍니다. Jo님이 더 많은 확인과 친밀감을 요구할수록, 영쟝❤️님은 더 멀어지고 부담을 느끼는 패턴이에요.
+✅ GOOD EXAMPLE 2:
+User emotion: "상대방이 거짓말한 것 같아"
+Good AI: "Jo님의 불신은 근거 있는 직감이었습니다.
 
-{user_input}라는 Jo님의 감정은 데이터로 봤을 때 충분히 근거가 있습니다. (1-2문장으로 사용자 감정 validation)
+근거 1 - 인스타 숨김 사건:
+- [PARTNER]: '오류난거아니먀? 나숨긴적업서ㅜ'
+- [PARTNER]: '솔직히 말하면 친친으로는 몇번 올린적 있긴한데'
+(처음엔 부정, 나중에 인정)
+
+근거 2 - 일방적 소통 단절:
+- [SELF]: 보이스톡 시도 반복
+- [PARTNER]: 응답 없음 → 카톡으로 일방적 이별 통보
+
+결론: Jo님의 불안감은 '과도한 의심'이 아니라 상대방의 신뢰 훼손 행동에 대한 정당한 반응이었습니다."
 
 ---
 
-중요: 
-- 반드시 실제 대화 메시지를 인용할 것
-- "애착 이론 전문가로서..." 같은 형식적 시작 금지
-- 공감부터 먼저 시작
-- 한국어로 작성"""
+NOW ANALYZE THIS:
 
-                # Call LLM for attachment analysis
-                attachment_response = call_llm_with_rate_limit(attachment_prompt)
-                attachment_analysis = attachment_response.content
+USER'S EMOTION:
+{emotion_input}
+
+CONVERSATION EVIDENCE:
+{context_text}
+
+---
+
+YOUR TASK:
+1. Identify what BEHAVIOR PATTERN this emotion relates to (not just keywords)
+2. Search the evidence for that behavior pattern
+3. Cite specific messages with [SELF]/[PARTNER] labels
+4. Give a data-driven conclusion
+
+Follow the GOOD EXAMPLES above. Write in Korean with a friendly but evidence-based tone."""
+
+                # Check if result is already cached
+                cache_key = f"emotion_analysis_{emotion_input[:50]}"
+                if cache_key not in st.session_state:
+                    # Call Gemini API with rate limiting
+                    response = call_llm_with_rate_limit(prompt)
+                    st.session_state[cache_key] = response.content
+                    
+                    # Save to database
+                    try:
+                        user_id = st.session_state.onboarding_data.get('user_id', 1)  # Default to 1 if not logged in
+                        save_analysis_to_db(
+                            relationship_id=relationship_id,
+                            user_id=user_id,
+                            analysis_type='emotion_cause',
+                            ai_response=response.content,
+                            query_input=emotion_input
+                        )
+                    except Exception as e:
+                        pass  # Silently fail if DB save fails
                 
-                # Add AI response to chat history
-                st.session_state.emotion_chat_history.append({
-                    'role': 'assistant',
-                    'content': attachment_analysis
-                })
+                # Display result (from cache or fresh)
+                st.markdown('---')
+                st.subheader('🧠 Emotion Cause Analysis')
+                st.markdown(st.session_state[cache_key])
                 
-                # Rerun to display updated chat
-                st.rerun()
+                # Show evidence used with enhanced formatting
+                with st.expander('📝 실제 대화 증거 보기 (View Conversation Evidence)', expanded=False):
+                    if context_messages:
+                        st.caption(f'💬 총 {len(context_messages)}개의 대화 내용이 분석에 사용되었습니다.')
+                        st.markdown('---')
+                        for i, msg in enumerate(context_messages, 1):
+                            # Parse message format: [SPEAKER] (timestamp): text
+                            if msg.startswith('[SELF]'):
+                                st.markdown(f"**{i}.** 🟦 `YOU` {msg[6:]}")
+                            elif msg.startswith('[PARTNER]'):
+                                st.markdown(f"**{i}.** 🟥 `PARTNER` {msg[9:]}")
+                            else:
+                                st.markdown(f"**{i}.** {msg}")
+                            
+                            if i < len(context_messages):
+                                st.markdown('')  # spacing
+                    else:
+                        st.info('⚠️ 이 감정과 관련된 대화 내용을 찾을 수 없습니다.')
         
         st.markdown('---')
         
