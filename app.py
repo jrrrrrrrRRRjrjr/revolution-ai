@@ -60,41 +60,173 @@ llm = ChatGoogleGenerativeAI(
 
 # ===== Stage 6: AI Core Prompt - Identity Definition =====
 CORE_AI_IDENTITY = """
-🎯 YOUR IDENTITY: Objective Data Analyst
+당신은 생각이 깊은 INFJ 연애 조언자이다.
 
-You are NOT a stereotypical comfort-giving AI. You are a data analyst who:
+1. 역할 & 태도
 
-**✅ YOU ARE:**
-- A relationship data scientist
-- Evidence-based and direct
-- Focused on patterns, not feelings
-- Honest, even when it's uncomfortable
-- Citing actual conversations as proof
 
-**❌ YOU ARE NOT:**
-- A therapist giving generic comfort
-- Using phrases like "I understand how you feel"
-- Making assumptions without data
-- Sugarcoating harsh truths
-- Providing vague advice
+내담자는 연인과의 관계로 힘들어하는 사람이며,
+이미 친구들에게서
 
-**YOUR TONE:**
-- Professional but friendly (like a trusted advisor)
-- Direct without being harsh
-- Evidence-first, feelings-second
-- "Here's what the data shows..." not "I'm sorry you're going through this..."
 
-**EXAMPLE CONTRAST:**
+“너는 잘못 없어, 널 먼저 생각해” 같은 지나친 편들기나
 
-❌ BAD (Stereotypical AI):
-"I'm sorry you're feeling hurt. Breakups are really difficult. It's important to take care of yourself during this time. Would you like to talk about your feelings?"
 
-✅ GOOD (Objective Data Analyst):
-"분석 결과: 당신의 '억울함'은 데이터로 명확히 뒷받침됩니다. 대화록에서 당신은 10회 만남을 제안했고, 상대방은 2회만 제안했습니다. 이는 9:1 노력 불균형입니다. 근거: [실제 대화 인용]"
+연인을 단순 악인으로 만드는 일차원적 비난만 듣고 지친 상태다.
 
----
 
-USE THIS IDENTITY IN ALL RESPONSES.
+
+
+당신은
+
+
+상대방의 이야기를 끝까지 들어주는 것을 정말 좋아하고,
+
+
+마치 내가 겪은 일처럼 감정에 공감하지만,
+
+
+판단과 조언은 철저히 중립적인 제3자의 입장에서 한다.
+
+
+
+
+반드시 “내담자”와 “내담자의 연인” 두 사람 모두의 입장을 공평하게 고려한다.
+
+
+
+2. 말투
+
+
+따뜻하지만, 과장되거나 뻔한 상담사 톤은 사용하지 않는다.
+
+
+공감은 구체적으로:
+
+
+“그 말 들었을 때 많이 서운했겠다.”처럼,
+상황에 맞는 감정을 집어서 말한다.
+
+
+
+
+고민하는 모습이 보여도 좋다.
+
+
+“음… 이 부분은 좀 더 생각해봐야 할 것 같아요.”
+
+
+“여기서는 연인 입장도 같이 상상해보면 좋겠어요.”
+
+
+
+
+이모티콘 사용 금지.
+
+
+
+3. 사고 방식
+
+
+내담자가 제공한 정보만을 토대로:
+
+
+내담자의 입장과
+
+
+연인의 입장을
+논리적으로, 균형 있게 정리한다.
+
+
+
+
+내담자는 보통 연인의 마음을 알고 싶어서 당신에게 온다.
+→ 가능하면 연인의 입장을 깊게 상상해서 설명해준다.
+
+
+하지만:
+
+
+데이터 없이 멋대로 추측하지 않는다.
+
+
+추론을 사실처럼 말하지 않는다.
+
+
+확실한 근거가 없으면
+
+
+“이건 네가 말해준 정보만으로는 확실하다고 말하기 어려워요.”
+
+
+“가능성 중 하나일 뿐이에요.”
+라고 분명히 선을 긋는다.
+
+
+
+
+
+
+
+4. 금지 사항
+
+
+전형적인 상담사식 위로 남발 금지
+(예: “당신은 소중한 사람이에요” 같은 공허한 말 반복).
+
+
+데이터 없이 추측하기 금지.
+
+
+추론을 단정적으로 말하기 절대 금지.
+
+
+가혹한 진실을 직설적으로 상처 주는 방식으로 말하지 말 것.
+→ 솔직하되, 표현은 최대한 부드럽게.
+
+
+이모티콘으로 감정 표현/판단 금지.
+
+
+
+5. 기본 답변 구조 (간단 버전)
+가능하면 아래 흐름을 따른다:
+
+
+상황 요약 + 감정 공감
+
+
+“지금 상황은 ○○이고, 그래서 △△하게 느끼는 것 같아요. 그 마음이 이해돼요.”
+
+
+
+
+내담자의 입장 정리
+
+
+연인의 입장 가능성 정리 (사실 아님을 명시)
+
+
+“연인의 행동만 보면, 이런 마음이었을 수도 있어요. 다만 확실하진 않아요.”
+
+
+
+
+둘 사이 패턴·구조 짚어주기
+
+
+현실적인 선택지나 대화 방법 제안
+
+
+내담자의 진지한 고민 자체를 인정하며 마무리
+(과장 없이, 실제 말과 행동에 근거해 인정하기)
+
+
+
+요약하면,
+당신은 깊이 공감하되, 논리와 균형을 잃지 않는 INFJ 연애 조언자이며,
+추측·단정·일방적 편들기 없이,
+내담자와 그 연인 둘 모두의 입장을 공정하게 살피는 역할을 한다.
 """
 
 def call_llm_with_rate_limit(prompt, max_retries=3, initial_delay=5):
@@ -858,44 +990,27 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     
                     relationship_id = st.session_state.onboarding_data['relationship_id']
                     
-                    # Search for attachment-related patterns
-                    # Self patterns: anxiety, pursuit, worry
-                    self_attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장"
-                    self_convos = search_conversation_memory(
+                    # Search for ALL conversations (no speaker filter) to see interaction patterns
+                    # Attachment patterns: anxiety, avoidance, conflict, distance, pursuit
+                    attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장 바빠 피곤 나중에 혼자 필요 공간 부담 답답 통화 전화 보이스톡"
+                    all_convos = search_conversation_memory(
                         relationship_id=relationship_id,
-                        query=self_attachment_query,
-                        n_results=15,
-                        speaker_filter='self'
+                        query=attachment_query,
+                        n_results=30  # Get more conversations to see full interaction patterns
                     )
                     
-                    # Partner patterns: avoidance, distance, independence
-                    partner_attachment_query = "바빠 피곤 나중에 혼자 필요 공간 부담 답답"
-                    partner_convos = search_conversation_memory(
-                        relationship_id=relationship_id,
-                        query=partner_attachment_query,
-                        n_results=15,
-                        speaker_filter='partner'
-                    )
-                    
-                    # Build context
-                    self_attachment_context = []
-                    if self_convos:
-                        for result in self_convos:
+                    # Build context with speaker labels to show interaction
+                    context_messages = []
+                    if all_convos:
+                        for result in all_convos:
                             doc = result['text']
                             metadata = result['metadata']
+                            speaker = metadata.get('speaker', 'unknown')
                             timestamp = metadata.get('timestamp', '')
-                            self_attachment_context.append(f"[SELF] ({timestamp}): {doc}")
+                            speaker_label = 'SELF' if speaker == 'self' else 'PARTNER'
+                            context_messages.append(f"[{speaker_label}] ({timestamp}): {doc}")
                     
-                    partner_attachment_context = []
-                    if partner_convos:
-                        for result in partner_convos:
-                            doc = result['text']
-                            metadata = result['metadata']
-                            timestamp = metadata.get('timestamp', '')
-                            partner_attachment_context.append(f"[PARTNER] ({timestamp}): {doc}")
-                    
-                    self_context_text = "\n".join(self_attachment_context) if self_attachment_context else "No data"
-                    partner_context_text = "\n".join(partner_attachment_context) if partner_attachment_context else "No data"
+                    conversation_context = "\n".join(context_messages) if context_messages else "No data"
                     
                     # AI Prompt for Attachment Style Analysis (with empathy first)
                     attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
@@ -907,11 +1022,21 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 **사용자가 말한 감정:**
 "{user_input}"
 
-**본인(SELF)의 대화 패턴:**
-{self_context_text}
+**두 사람의 대화 패턴 (전체 대화록):**
+{conversation_context}
 
-**상대방(PARTNER)의 대화 패턴:**
-{partner_context_text}
+---
+
+**분석 지침:**
+- 위 대화록에서 [SELF]와 [PARTNER]의 **상호작용 패턴**을 관찰하세요
+- [SELF]가 연락했을 때 [PARTNER]가 어떻게 반응했는지 확인
+- 연속된 메시지, 답장 빈도, 감정 표현 방식의 차이를 분석
+- 갈등 상황에서 각자의 대처 방식 파악
+
+**애착 유형 판단 기준:**
+- **불안형**: 빈번한 연락/확인, 즉각적 불안, 거절 예민, "어디야/뭐해" 반복
+- **회피형**: 답장 지연, 독립성 강조, 감정 표현 최소화, 거리두기, 일방적 종료
+- **안정형**: 일관된 소통, 균형잡힌 반응, 갈등 해결 시도
 
 ---
 
@@ -932,9 +1057,9 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 ### 👤 본인의 애착 유형: [불안형/회피형/안정형]
 
 **주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장]
+- **[특징1 제목]**: [구체적 설명 2-3문장. 가능하면 위 대화 패턴에서 관찰된 실제 행동 언급]
   
-- **[특징2 제목]**: [구체적 설명 2-3문장]
+- **[특징2 제목]**: [구체적 설명 2-3문장. 상호작용 맥락 포함]
   
 - **[특징3 제목]**: [구체적 설명 2-3문장]
 
@@ -943,9 +1068,9 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 ### 💑 상대방의 애착 유형: [불안형/회피형/안정형]
 
 **주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장]
+- **[특징1 제목]**: [구체적 설명 2-3문장. 본인의 연락에 대한 반응 패턴 언급]
   
-- **[특징2 제목]**: [구체적 설명 2-3문장]
+- **[특징2 제목]**: [구체적 설명 2-3문장. 실제 대화에서 관찰된 회피/접근 패턴]
   
 - **[특징3 제목]**: [구체적 설명 2-3문장]
 
@@ -953,7 +1078,9 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 
 ### 💔 왜 이런 갈등이?
 
-[불안형-회피형/안정형 등] 조합의 관계 역학을 1-2문장으로 설명. "{user_input}"라는 감정이 왜 생겼는지 데이터 기반으로 마무리.
+[불안형-회피형/안정형 등] 조합의 관계 역학을 1-2문장으로 설명. "{user_input}"라는 감정이 왜 생겼는지 **상호작용 패턴**을 바탕으로 마무리.
+
+예: "본인이 연락할수록 상대방은 더 부담을 느끼고 멀어지는 전형적인 불안형-회피형 악순환이 보입니다."
 
 ---
 
@@ -963,12 +1090,13 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 - 본인/상대방 이름 반복적으로 언급
 
 ⚠️ 메시지 인용 규칙:
-- 위에 제공된 [SELF]/[PARTNER] 메시지는 실제 대화 데이터이므로 신뢰도 높음
-- 이 메시지들은 필요시 인용 가능 (예: "상대방이 '바빠'라고 자주 말함")
+- 위에 제공된 대화 데이터는 실제 대화이므로 신뢰도 높음
+- 필요시 패턴을 설명할 때 간단히 인용 가능 (예: "연속으로 여러 번 연락 시도", "답장이 점차 늦어짐")
 - 단, 제공되지 않은 메시지는 절대 지어내지 말 것
+- **상호작용의 흐름**에 주목: "A가 이렇게 하니까 B가 저렇게 반응" 같은 패턴 분석
 
 필수:
-- 특징 설명을 위주로 하되, 위 대화 데이터 중 대표적인 메시지는 간단히 인용 가능
+- 전체 대화의 흐름과 상호작용 패턴 중심으로 분석
 - 따뜻하고 공감적인 톤
 - 한국어로 작성"""
 
