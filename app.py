@@ -707,72 +707,70 @@ elif st.session_state.screen == 'speaker_selection':
                     if not messages_to_save:
                         st.error('⚠️ 저장할 메시지가 없습니다.')
                         db.rollback()
-                        db.close()
                         st.session_state.is_saving = False
-                        return
-                    
-                    # Save to ChromaDB
-                    collection = get_or_create_relationship_collection(relationship.relationship_id)
-                    
-                    batch_size = 100
-                    progress_bar = st.progress(0)
-                    
-                    for i in range(0, len(messages_to_save), batch_size):
-                        batch_messages = messages_to_save[i:i+batch_size]
+                    else:
+                        # Save to ChromaDB
+                        collection = get_or_create_relationship_collection(relationship.relationship_id)
                         
-                        ids = [f"chat_msg_{i+j}_{relationship.relationship_id}" for j in range(len(batch_messages))]
-                        documents = [msg['text'] for msg in batch_messages]
-                        metadatas = [
-                            {
-                                'speaker': msg['speaker'],
-                                'timestamp': msg['timestamp'],
-                                'text': msg['text'],
-                                'topic': 'conversation',
-                                'line_number': msg['line_number'],
-                                'message_index': i+j
-                            }
-                            for j, msg in enumerate(batch_messages)
-                        ]
+                        batch_size = 100
+                        progress_bar = st.progress(0)
                         
-                        collection.add(
-                            ids=ids,
-                            documents=documents,
-                            metadatas=metadatas
-                        )
+                        for i in range(0, len(messages_to_save), batch_size):
+                            batch_messages = messages_to_save[i:i+batch_size]
+                            
+                            ids = [f"chat_msg_{i+j}_{relationship.relationship_id}" for j in range(len(batch_messages))]
+                            documents = [msg['text'] for msg in batch_messages]
+                            metadatas = [
+                                {
+                                    'speaker': msg['speaker'],
+                                    'timestamp': msg['timestamp'],
+                                    'text': msg['text'],
+                                    'topic': 'conversation',
+                                    'line_number': msg['line_number'],
+                                    'message_index': i+j
+                                }
+                                for j, msg in enumerate(batch_messages)
+                            ]
+                            
+                            collection.add(
+                                ids=ids,
+                                documents=documents,
+                                metadatas=metadatas
+                            )
+                            
+                            progress = min((i + batch_size) / len(messages_to_save), 1.0)
+                            progress_bar.progress(progress)
                         
-                        progress = min((i + batch_size) / len(messages_to_save), 1.0)
-                        progress_bar.progress(progress)
-                    
-                    progress_bar.empty()
-                    
-                    # Save to session state
-                    st.session_state.onboarding_data = {
-                        'user_id': user.user_id,
-                        'relationship_id': relationship.relationship_id,
-                        'self_age': onboarding_info['self_age'],
-                        'self_gender': onboarding_info['self_gender'],
-                        'self_mbti': onboarding_info['self_mbti'],
-                        'self_occupation': onboarding_info['self_occupation'],
-                        'partner_age': onboarding_info['partner_age'],
-                        'partner_gender': onboarding_info['partner_gender'],
-                        'partner_mbti': onboarding_info['partner_mbti'],
-                        'partner_occupation': onboarding_info['partner_occupation'],
-                        'start_date': onboarding_info['start_date'],
-                        'end_date': onboarding_info['end_date'],
-                        'is_ldr': onboarding_info['is_ldr'],
-                        'conversation_lines': len(parsed_messages),
-                        'self_speaker_name': self_speaker,
-                        'partner_speaker_name': partner_speaker
-                    }
-                    
-                    del st.session_state.temp_parsed_data
-                    
-                    st.success(f'✅ Saved {len(parsed_messages)} messages with correct speaker labels!')
-                    
-                    # Clear processing flag before screen change
-                    st.session_state.is_saving = False
-                    st.session_state.screen = 'analysis'
-                    st.rerun()
+                        progress_bar.empty()
+                        
+                        # Save to session state
+                        st.session_state.onboarding_data = {
+                            'user_id': user.user_id,
+                            'relationship_id': relationship.relationship_id,
+                            'self_age': onboarding_info['self_age'],
+                            'self_gender': onboarding_info['self_gender'],
+                            'self_mbti': onboarding_info['self_mbti'],
+                            'self_occupation': onboarding_info['self_occupation'],
+                            'partner_age': onboarding_info['partner_age'],
+                            'partner_gender': onboarding_info['partner_gender'],
+                            'partner_mbti': onboarding_info['partner_mbti'],
+                            'partner_occupation': onboarding_info['partner_occupation'],
+                            'start_date': onboarding_info['start_date'],
+                            'end_date': onboarding_info['end_date'],
+                            'is_ldr': onboarding_info['is_ldr'],
+                            'conversation_lines': len(parsed_messages),
+                            'self_speaker_name': self_speaker,
+                            'partner_speaker_name': partner_speaker
+                        }
+                        
+                        del st.session_state.temp_parsed_data
+                        
+                        st.success(f'✅ Saved {len(parsed_messages)} messages with correct speaker labels!')
+                        
+                        # Clear processing flag before screen change
+                        st.session_state.is_saving = False
+                        st.session_state.screen = 'analysis'
+                        st.rerun()
                     
                 except Exception as e:
                     st.error(f'❌ Error saving data: {str(e)}')
