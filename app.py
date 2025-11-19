@@ -1343,75 +1343,67 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 partner_text = "\n".join([f"- {msg}" for msg in partner_context]) if partner_context else "No data"
                 self_text = "\n".join([f"- {msg}" for msg in self_context]) if self_context else "No data"
                 
-                # AI Prompt for future relationship suggestions (v5.1 - Strict Rules)
-                prompt = f"""You are providing advice for the user's NEXT relationship based on data from THIS relationship.
+                # AI Prompt for future relationship suggestions
+                prompt = f"""당신은 사용자의 다음 연애를 위한 조언을 제공하는 연애 상담 AI입니다.
 
-🎯 CRITICAL RULES (v5.1 - NO INFERENCE ALLOWED):
+🎯 분석 목표:
+이번 관계 경험을 바탕으로 사용자가 장점은 살리고 단점은 보완할 수 있도록 실질적 조언을 제공합니다.
 
-1. 🚩 RED FLAGS Analysis Rules:
-   ❌ BAD: Don't cite everyday conversations as red flags
-      Example: "책상이 더러워서..." is just daily life, NOT a red flag
-   
-   ✅ GOOD: Only cite OBJECTIVE negative behaviors that caused the user pain:
-      - Intentional hiding: "친친으로는 몇번 올린적 있긴한데"
-      - Lies: 지역 거짓말 (said 구월동, actually 인하대)
-      - Passive rejection: "굳이"
-      - Unilateral breakup: "성향이 안맞아" (via text, no discussion)
-
-2. 💚 GREEN FLAGS Analysis Rules:
-   ❌ BAD: Don't confuse speakers!
-      Example: "라이브러리 투어", "장 보러 가볼게" <- These are USER's actions, NOT partner's
-   
-   ✅ GOOD: Analyze USER's positive patterns FIRST, then recommend:
-      - User likes: "드레스덴 마켓", "카를교 답사" (active planning)
-      - Recommendation: "다음엔 여행 계획에 함께 적극적으로 참여하는 상대를 찾으세요"
-
-3. 🪞 GROWTH AREAS Analysis Rules:
-   ❌ BAD: Don't cite partner's issues as user's growth areas
-      Example: "상대방의 불만 경청" <- "책상" conversation was just daily chat, not a complaint
-   
-   ✅ GOOD: Only cite USER's objective mistakes:
-      - Excessive checking: 10월 11일 연속 보이스톡 시도
-      - Past trauma projection: if evidence exists in data
+⚠️ 중요 규칙:
+- 사용자의 행동 패턴에 집중
+- 장점은 유지/강화, 단점은 개선 방향 제시
+- 구체적이고 실행 가능한 조언
+- 지지적이고 격려하는 톤
 
 ---
 
-PARTNER'S NEGATIVE PATTERNS:
+상대방의 부정적 패턴 예시:
 {partner_text}
 
-USER'S PATTERNS:
+사용자의 행동 패턴 예시:
 {self_text}
 
 ---
 
-YOUR TASK:
-Generate exactly 3 sections with ONLY data-backed advice:
+**답변 형식:**
 
-### � 피해야 할 위험 신호 (Red Flags to Avoid)
+### 💪 계속 유지할 강점
 
-[List 2-3 OBJECTIVE negative behaviors from PARTNER that hurt the user. Cite specific examples from partner's patterns above. NO everyday conversations.]
+[사용자의 긍정적 패턴 2-3가지를 칭찬하고 이를 다음 관계에서도 계속 유지하도록 격려]
 
-### 💚 추구해야 할 긍정 신호 (Green Flags to Pursue)
-
-[Analyze what USER values (from user's patterns above), then recommend partners who MATCH those values. Do NOT confuse speakers.]
-
-### 🪞 나의 성장 포인트 (Personal Growth Areas)
-
-[List 2-3 OBJECTIVE patterns from USER that need adjustment. Cite specific examples from user's patterns above. Be constructive, not harsh.]
+예:
+- **적극적인 관계 투자**: 데이트 제안, 배려 등 관계에 노력을 기울이는 모습이 좋아요. 다음에도 이런 따뜻함을 유지하세요.
+- **솔직한 감정 표현**: 자신의 감정을 표현하는 것은 건강한 관계의 시작이에요.
 
 ---
 
-FORMAT RULES:
-- Write in Korean
-- Cite specific messages as evidence
-- Be direct and data-driven
-- NO inference, NO assumptions
-- Keep each section to 3-4 bullet points maximum"""
+### 🌱 보완하면 좋을 점
 
+[사용자의 개선 가능한 패턴 2-3가지를 부드럽게 제시하고 구체적인 개선 방법 제안]
+
+예:
+- **불안감 조절**: 상대방의 응답이 늦어도 즉시 불안해하기보다 여유를 가져보세요. "답장이 늦네, 무슨 일 있나?" 보다는 "바쁘겠지, 기다려볼게"라는 마음가짐이 도움 돼요.
+- **경계선 설정**: 상대방이 회피적이거나 일방적일 때 명확히 대화를 요청하는 연습이 필요해요.
+
+---
+
+### 🎯 다음 관계에서 실천할 것
+
+[앞서 분석한 장점/단점을 바탕으로 구체적이고 실행 가능한 행동 지침 3가지]
+
+예:
+1. 초반 3개월: 상대방의 소통 패턴 관찰하기 (회피형인지, 안정형인지)
+2. 내 감정 일기 쓰기: 불안할 때 바로 연락하기보다 먼저 기록하고 생각하기
+3. 데이트 계획은 함께: 내가 주도하되 상대방 의견도 적극 물어보기
+
+---
+
+한국어로 작성하고, 따뜻하면서도 구체적인 조언을 제공하세요."""
+                
                 # Check if result is already cached
                 cache_key = f"next_relationship_{relationship_id}"
                 if cache_key not in st.session_state:
-                    # Call Gemini API (v5.1 prompt) with rate limiting
+                    # Call Gemini API with rate limiting
                     response = call_llm_with_rate_limit(prompt)
                     st.session_state[cache_key] = response.content
                 
@@ -1420,7 +1412,7 @@ FORMAT RULES:
                 st.markdown(st.session_state[cache_key])
                 
                 st.markdown('---')
-                st.success('✅ 분석 완료! 이 조언들은 v5.1 프롬프트로 데이터 기반 분석되었습니다.')
+                st.success('✅ 분석 완료! 다음 연애를 위한 조언을 확인해보세요.')
         
         st.markdown('---')
         st.caption('�💡 이 기능은 당신의 과거 대화 패턴을 분석하여 맞춤형 조언을 제공합니다.')
