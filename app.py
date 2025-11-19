@@ -811,21 +811,34 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
         
         st.markdown('---')
         
-        # === 4.1. Interactive Emotional Analysis UI ===
+        # === 4.1. Interactive Emotional Analysis UI (Chat Interface) ===
         st.subheader('😢 최근 어떤 일로 갈등이 생겼나요?')
+        st.caption('대화하듯이 편하게 물어보세요. AI가 당신의 관계 데이터를 분석해드립니다.')
         
-        # 4.1.1: Text area for emotion input
-        emotion_input = st.text_area(
-            'Describe the emotion you\'re struggling with most after this breakup',
-            placeholder='Example: I feel wronged because I made all the effort but got blamed...',
-            height=150,
-            help='Be specific about what you\'re feeling. The AI will analyze the cause based on your conversation data.'
-        )
+        # Initialize chat history
+        if 'emotion_chat_history' not in st.session_state:
+            st.session_state.emotion_chat_history = [{
+                'role': 'assistant',
+                'content': '안녕하세요! 저는 당신의 관계 데이터를 분석하는 AI 코치입니다.\n\n최근 이별 후 가장 힘든 감정이나 억울한 상황을 편하게 말씀해주세요. 대화 기록을 바탕으로 객관적으로 분석해드리겠습니다.\n\n예시:\n- "나만 노력한 것 같아서 억울해요"\n- "상대방이 거짓말한 것 같아요"\n- "왜 이별하게 됐는지 모르겠어요"'
+            }]
         
-        # 4.1.3: AI Emotion Analysis Button
-        if st.button('🔍 Analyze Emotion Cause', type='primary', disabled=not emotion_input.strip(), use_container_width=True):
-            # STEP 1: Analyze Attachment Styles First
-            with st.spinner('🧠 먼저 두 사람의 애착 유형을 분석하고 있습니다...'):
+        # Display chat messages
+        for message in st.session_state.emotion_chat_history:
+            with st.chat_message(message['role']):
+                st.markdown(message['content'])
+        
+        # Chat input
+        user_input = st.chat_input('예: 나만 노력한 것 같아서 억울해요...')
+        
+        if user_input:
+            # Add user message to chat
+            st.session_state.emotion_chat_history.append({
+                'role': 'user',
+                'content': user_input
+            })
+            
+            # Analyze with AI
+            with st.spinner('🧠 두 사람의 애착 유형을 분석하고 있습니다...'):
                 from database.chroma_db import search_conversation_memory
                 
                 relationship_id = st.session_state.onboarding_data['relationship_id']
@@ -930,27 +943,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 attachment_response = call_llm_with_rate_limit(attachment_prompt)
                 attachment_analysis = attachment_response.content
                 
-                # Display attachment analysis
-                st.markdown('---')
-                st.subheader('🧠 애착 유형 분석 (Attachment Style Analysis)')
-                st.markdown(attachment_analysis)
-                
-                with st.expander('📝 분석에 사용된 대화 증거', expanded=False):
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.caption('**본인의 대화 패턴**')
-                        for i, msg in enumerate(self_attachment_context[:5], 1):
-                            st.markdown(f"{i}. {msg}")
-                    with col2:
-                        st.caption('**상대방의 대화 패턴**')
-                        for i, msg in enumerate(partner_attachment_context[:5], 1):
-                            st.markdown(f"{i}. {msg}")
-                
-                # Add to chat history
-                st.session_state.emotion_chat_history.append({
-                    'role': 'user',
-                    'content': user_input
-                })
+                # Add AI response to chat history
                 st.session_state.emotion_chat_history.append({
                     'role': 'assistant',
                     'content': attachment_analysis
