@@ -847,53 +847,58 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 'content': user_input
             })
             
-            # Analyze with AI
-            with st.spinner('🧠 두 사람의 애착 유형을 분석하고 있습니다...'):
-                from database.chroma_db import search_conversation_memory
-                
-                relationship_id = st.session_state.onboarding_data['relationship_id']
-                
-                # Search for attachment-related patterns
-                # Self patterns: anxiety, pursuit, worry
-                self_attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장"
-                self_convos = search_conversation_memory(
-                    relationship_id=relationship_id,
-                    query=self_attachment_query,
-                    n_results=15,
-                    speaker_filter='self'
-                )
-                
-                # Partner patterns: avoidance, distance, independence
-                partner_attachment_query = "바빠 피곤 나중에 혼자 필요 공간 부담 답답"
-                partner_convos = search_conversation_memory(
-                    relationship_id=relationship_id,
-                    query=partner_attachment_query,
-                    n_results=15,
-                    speaker_filter='partner'
-                )
-                
-                # Build context
-                self_attachment_context = []
-                if self_convos:
-                    for result in self_convos:
-                        doc = result['text']
-                        metadata = result['metadata']
-                        timestamp = metadata.get('timestamp', '')
-                        self_attachment_context.append(f"[SELF] ({timestamp}): {doc}")
-                
-                partner_attachment_context = []
-                if partner_convos:
-                    for result in partner_convos:
-                        doc = result['text']
-                        metadata = result['metadata']
-                        timestamp = metadata.get('timestamp', '')
-                        partner_attachment_context.append(f"[PARTNER] ({timestamp}): {doc}")
-                
-                self_context_text = "\n".join(self_attachment_context) if self_attachment_context else "No data"
-                partner_context_text = "\n".join(partner_attachment_context) if partner_attachment_context else "No data"
-                
-                # AI Prompt for Attachment Style Analysis (with empathy first)
-                attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
+            # Check if this is the first question (attachment analysis) or follow-up question
+            # First question = only 2 messages in history (initial greeting + user's first input)
+            is_first_question = len(st.session_state.emotion_chat_history) == 2
+            
+            if is_first_question:
+                # FIRST QUESTION: Do attachment analysis
+                with st.spinner('🧠 두 사람의 애착 유형을 분석하고 있습니다...'):
+                    from database.chroma_db import search_conversation_memory
+                    
+                    relationship_id = st.session_state.onboarding_data['relationship_id']
+                    
+                    # Search for attachment-related patterns
+                    # Self patterns: anxiety, pursuit, worry
+                    self_attachment_query = "걱정 불안 연락 확인 어디 뭐해 보고싶어 외로워 무시 답장"
+                    self_convos = search_conversation_memory(
+                        relationship_id=relationship_id,
+                        query=self_attachment_query,
+                        n_results=15,
+                        speaker_filter='self'
+                    )
+                    
+                    # Partner patterns: avoidance, distance, independence
+                    partner_attachment_query = "바빠 피곤 나중에 혼자 필요 공간 부담 답답"
+                    partner_convos = search_conversation_memory(
+                        relationship_id=relationship_id,
+                        query=partner_attachment_query,
+                        n_results=15,
+                        speaker_filter='partner'
+                    )
+                    
+                    # Build context
+                    self_attachment_context = []
+                    if self_convos:
+                        for result in self_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
+                            timestamp = metadata.get('timestamp', '')
+                            self_attachment_context.append(f"[SELF] ({timestamp}): {doc}")
+                    
+                    partner_attachment_context = []
+                    if partner_convos:
+                        for result in partner_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
+                            timestamp = metadata.get('timestamp', '')
+                            partner_attachment_context.append(f"[PARTNER] ({timestamp}): {doc}")
+                    
+                    self_context_text = "\n".join(self_attachment_context) if self_attachment_context else "No data"
+                    partner_context_text = "\n".join(partner_attachment_context) if partner_attachment_context else "No data"
+                    
+                    # AI Prompt for Attachment Style Analysis (with empathy first)
+                    attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
 
 ⚠️ 중요: 아래 형식을 정확히 따라주세요. "애착 이론 전문가로서..." 같은 말로 시작하지 마세요!
 
@@ -975,6 +980,73 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 
                 # Rerun to display updated chat
                 st.rerun()
+                
+            else:
+                # FOLLOW-UP QUESTIONS: Answer based on conversation data and previous context
+                with st.spinner('💭 답변을 생성하고 있습니다...'):
+                    from database.chroma_db import search_conversation_memory
+                    
+                    relationship_id = st.session_state.onboarding_data['relationship_id']
+                    
+                    # Search relevant conversations based on user's question
+                    relevant_convos = search_conversation_memory(
+                        relationship_id=relationship_id,
+                        query=user_input,
+                        n_results=10
+                    )
+                    
+                    # Build context
+                    context_messages = []
+                    if relevant_convos:
+                        for result in relevant_convos:
+                            doc = result['text']
+                            metadata = result['metadata']
+                            speaker = metadata.get('speaker', 'unknown')
+                            timestamp = metadata.get('timestamp', '')
+                            context_messages.append(f"[{speaker.upper()}] ({timestamp}): {doc}")
+                    
+                    context_text = "\n".join(context_messages) if context_messages else "No relevant data found."
+                    
+                    # Get conversation history for context
+                    chat_history = "\n".join([
+                        f"{msg['role'].upper()}: {msg['content'][:200]}..." 
+                        for msg in st.session_state.emotion_chat_history[-6:-1]  # Last 3 exchanges
+                    ])
+                    
+                    # Follow-up question prompt
+                    followup_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
+
+사용자가 이미 애착 유형 분석을 받았고, 추가 질문을 하고 있습니다.
+
+**이전 대화 맥락:**
+{chat_history}
+
+**사용자의 새로운 질문:**
+"{user_input}"
+
+**관련 대화 데이터:**
+{context_text}
+
+**답변 지침:**
+1. 사용자의 질문에 직접적으로 답변하세요
+2. 대화 데이터를 기반으로 객관적인 인사이트 제공
+3. 애착 유형을 다시 설명하지 마세요 (이미 분석했음)
+4. 2-3 문단으로 간결하게 작성
+5. 따뜻하고 공감적인 톤 유지
+
+한국어로 답변하세요."""
+
+                    # Call LLM
+                    followup_response = call_llm_with_rate_limit(followup_prompt)
+                    
+                    # Add AI response to chat history
+                    st.session_state.emotion_chat_history.append({
+                        'role': 'assistant',
+                        'content': followup_response.content
+                    })
+                    
+                    # Rerun to display updated chat
+                    st.rerun()
         
         st.markdown('---')
         
