@@ -457,6 +457,7 @@ elif st.session_state.screen == 'onboarding':
             self_gender = st.selectbox('Your Gender', ['Male', 'Female', 'Other'])
         with col2:
             self_mbti = st.text_input('Your MBTI (optional)', max_chars=4, placeholder='e.g., INFP')
+            self_occupation = st.text_input('Your Occupation (optional)', max_chars=100, placeholder='e.g., Software Engineer, Student')
         st.markdown('---')
         st.subheader('💑 Partner Information')
         col3, col4 = st.columns(2)
@@ -465,6 +466,7 @@ elif st.session_state.screen == 'onboarding':
             partner_gender = st.selectbox('Partner Gender', ['Male', 'Female', 'Other'])
         with col4:
             partner_mbti = st.text_input('Partner MBTI (optional)', max_chars=4, placeholder='e.g., ENFJ')
+            partner_occupation = st.text_input('Partner Occupation (optional)', max_chars=100, placeholder='e.g., Teacher, Designer')
         st.markdown('---')
         st.subheader('💝 Relationship Details')
         col5, col6 = st.columns(2)
@@ -502,9 +504,11 @@ elif st.session_state.screen == 'onboarding':
                                     'self_age': self_age,
                                     'self_gender': self_gender,
                                     'self_mbti': self_mbti if self_mbti else None,
+                                    'self_occupation': self_occupation if self_occupation else None,
                                     'partner_age': partner_age,
                                     'partner_gender': partner_gender,
                                     'partner_mbti': partner_mbti if partner_mbti else None,
+                                    'partner_occupation': partner_occupation if partner_occupation else None,
                                     'start_date': start_date,
                                     'end_date': end_date if st.session_state.mode == 'Breakup' else None,
                                     'is_ldr': is_ldr
@@ -629,6 +633,7 @@ elif st.session_state.screen == 'speaker_selection':
                         age=onboarding_info['self_age'],
                         gender=onboarding_info['self_gender'],
                         mbti=onboarding_info['self_mbti'],
+                        occupation=onboarding_info['self_occupation'],
                         notes=f"LDR: {onboarding_info['is_ldr']}"
                     )
                     db.add(self_participant)
@@ -638,7 +643,8 @@ elif st.session_state.screen == 'speaker_selection':
                         role='partner',
                         age=onboarding_info['partner_age'],
                         gender=onboarding_info['partner_gender'],
-                        mbti=onboarding_info['partner_mbti']
+                        mbti=onboarding_info['partner_mbti'],
+                        occupation=onboarding_info['partner_occupation']
                     )
                     db.add(partner_participant)
                     
@@ -709,9 +715,11 @@ elif st.session_state.screen == 'speaker_selection':
                         'self_age': onboarding_info['self_age'],
                         'self_gender': onboarding_info['self_gender'],
                         'self_mbti': onboarding_info['self_mbti'],
+                        'self_occupation': onboarding_info['self_occupation'],
                         'partner_age': onboarding_info['partner_age'],
                         'partner_gender': onboarding_info['partner_gender'],
                         'partner_mbti': onboarding_info['partner_mbti'],
+                        'partner_occupation': onboarding_info['partner_occupation'],
                         'start_date': onboarding_info['start_date'],
                         'end_date': onboarding_info['end_date'],
                         'is_ldr': onboarding_info['is_ldr'],
@@ -1681,6 +1689,21 @@ FORMAT RULES:
                 ])
                 
                 # Create AI coach prompt (based on Prompt.txt)
+                data = st.session_state.onboarding_data
+                
+                # Build participant info with occupation
+                user_info = f"Age: {data.get('self_age')}, Gender: {data.get('self_gender')}"
+                if data.get('self_mbti'):
+                    user_info += f", MBTI: {data.get('self_mbti')}"
+                if data.get('self_occupation'):
+                    user_info += f", Occupation: {data.get('self_occupation')}"
+                
+                partner_info = f"Age: {data.get('partner_age')}, Gender: {data.get('partner_gender')}"
+                if data.get('partner_mbti'):
+                    partner_info += f", MBTI: {data.get('partner_mbti')}"
+                if data.get('partner_occupation'):
+                    partner_info += f", Occupation: {data.get('partner_occupation')}"
+                
                 prompt = f"""## Identity & Rules
 1. INFJ
 2. 있어보이는 척 하는 전문 용어(e.g., "Attentional distraction") 사용 금지
@@ -1702,6 +1725,10 @@ Your identity is an **'Objective Data Analyst'**, not a therapist.
 ---
 
 ## Input Context
+
+**Relationship Participants:**
+- User (SELF): {user_info}
+- Partner: {partner_info}
 
 **User's Current Concern:**
 {user_input}

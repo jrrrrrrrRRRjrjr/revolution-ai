@@ -64,7 +64,8 @@ class Participant(Base):
     age = Column(Integer, nullable=False)
     gender = Column(String(10), nullable=False)
     mbti = Column(String(4), nullable=True)  # e.g., "INFP"
-    notes = Column(String, nullable=True)  # Special notes for AI reference
+    occupation = Column(String(100), nullable=True)  # e.g., "Software Engineer", "Student"
+    notes = Column(String(500), nullable=True)  # Special notes for AI reference
     
     # Relationships
     relationship = relationship('Relationship', back_populates='participants')
