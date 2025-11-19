@@ -619,7 +619,13 @@ elif st.session_state.screen == 'speaker_selection':
             st.rerun()
     
     with col2:
-        if st.button('✅ Confirm & Save', type='primary', use_container_width=True, disabled=not partner_speaker):
+        # Disable button if already processing
+        is_processing = st.session_state.get('is_saving', False)
+        
+        if st.button('✅ Confirm & Save', type='primary', use_container_width=True, disabled=(not partner_speaker or is_processing)):
+            # Set processing flag to prevent double-click
+            st.session_state.is_saving = True
+            
             with st.spinner('💾 Saving conversation with correct speaker labels...'):
                 # Save to SQLite database
                 db = SessionLocal()
@@ -702,6 +708,7 @@ elif st.session_state.screen == 'speaker_selection':
                         st.error('⚠️ 저장할 메시지가 없습니다.')
                         db.rollback()
                         db.close()
+                        st.session_state.is_saving = False
                         return
                     
                     # Save to ChromaDB
@@ -761,12 +768,17 @@ elif st.session_state.screen == 'speaker_selection':
                     del st.session_state.temp_parsed_data
                     
                     st.success(f'✅ Saved {len(parsed_messages)} messages with correct speaker labels!')
+                    
+                    # Clear processing flag before screen change
+                    st.session_state.is_saving = False
                     st.session_state.screen = 'analysis'
                     st.rerun()
                     
                 except Exception as e:
                     st.error(f'❌ Error saving data: {str(e)}')
                     db.rollback()
+                    # Clear processing flag on error
+                    st.session_state.is_saving = False
                 finally:
                     db.close()
 
