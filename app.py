@@ -434,13 +434,15 @@ def parse_conversation_file(file_content):
             false_positive_patterns = [
                 r'^https?:',  # URLs
                 r'^\d{1,2}:\d{2}',  # Timestamps like 14:30
-                r'^저장한\s*날짜:',  # "저장한 날짜:"
+                r'^저장한\s*날짜\s*:',  # "저장한 날짜:"
+                r'^Saved\s+on\s*:',  # "Saved on:"
+                r'^Date\s+saved\s*:',  # "Date saved:"
                 r'^[-=]+',  # Separator lines
                 r'^\[.*\]',  # Messages starting with brackets
                 r'^사진$|^Photo$|^이미지$|^동영상$',  # Media messages
             ]
             
-            is_false_positive = any(re.match(pattern, stripped) for pattern in false_positive_patterns)
+            is_false_positive = any(re.match(pattern, stripped, re.IGNORECASE) for pattern in false_positive_patterns)
             
             if not is_false_positive:
                 generic_match = patterns['generic'].match(stripped)
