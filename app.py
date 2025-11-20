@@ -827,18 +827,21 @@ elif st.session_state.screen == 'speaker_selection':
                     
                     # Keep all messages, mark others as 'other' for context
                     other_count = 0
+                    other_speakers = set()  # Track who are the 'other' speakers
                     
                     for msg in parsed_messages:
                         if msg['speaker'] in speaker_map:
                             msg['speaker'] = speaker_map[msg['speaker']]
                         else:
-                            # Keep other speakers as 'other' for context
+                            # Keep track of original speaker name before marking as 'other'
+                            other_speakers.add(msg['speaker'])
                             msg['speaker'] = 'other'
                             other_count += 1
                     
                     # Show info about other speakers if applicable
                     if other_count > 0:
-                        st.info(f"ℹ️ 그룹채팅 감지: {other_count}개의 다른 화자 메시지가 'other'로 저장됩니다 (맥락 분석에 포함)")
+                        other_names = ', '.join(sorted(other_speakers))
+                        st.info(f"ℹ️ 그룹채팅 감지: {other_count}개의 다른 화자 메시지가 'other'로 저장됩니다 (맥락 분석에 포함)\n\n**다른 화자:** {other_names}")
                     
                     # Use all messages (including 'other')
                     messages_to_save = parsed_messages
@@ -1031,24 +1034,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 - [SELF]가 연락했을 때 [PARTNER]가 어떻게 반응했는지 확인
 - 연속된 메시지, 답장 빈도, 감정 표현 방식의 차이를 분석
 - 갈등 상황에서 각자의 대처 방식 파악
-
-**⚠️ 중요: 애착 유형 판단 시 주의사항**
-1. **긍정적 신호를 먼저 확인하세요**
-   - 애정 표현(사랑해, 보고싶어, 좋아해 등)이 있으면 회피형 아님
-   - "씻고 전화할게", "끝나고 연락할게" = 정상적인 소통 (회피 아님)
-   - 일상 공유(밥먹었어, 수업 끝났어 등)가 있으면 관계 참여 중
-
-2. **회피형은 "반복적이고 명확한 패턴"이 있어야 함**
-   - 단순히 짧은 답장 ≠ 회피형
-   - 일시적으로 바쁜 것 ≠ 회피형
-   - 개인 시간 필요 ≠ 회피형
-
-3. **정상 소통을 회피형으로 오판하지 마세요**
-   - ❌ "씻고 전화할게" → 회피형 (X) / 일정 공유 (O)
-   - ❌ "바빠서 나중에" → 회피형 (X) / 실제로 바쁜 것 (O)
-   - ❌ "허거덩슨", "ㅇㅇ" 같은 짧은 답장 → 회피형 (X) / 개인 습관 (O)
-   - ✅ **3회 이상 연속 만남 거절 + 이유 없는 연락 두절** → 회피형 패턴
-
+- 이를 바탕으로 두 사람의 애착 유형을 추론하세요 (불안형, 회피형, 안정형 중 하나)
 ---
 
 **답변 작성 규칙:**
@@ -1068,9 +1054,9 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 ### 👤 본인의 애착 유형: [불안형/회피형/안정형]
 
 **주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장. 가능하면 위 대화 패턴에서 관찰된 실제 행동 언급]
+- **[특징1 제목]**: [구체적 설명 2-3문장.]
   
-- **[특징2 제목]**: [구체적 설명 2-3문장. 상호작용 맥락 포함]
+- **[특징2 제목]**: [구체적 설명 2-3문장.]
   
 - **[특징3 제목]**: [구체적 설명 2-3문장]
 
@@ -1079,11 +1065,11 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 ### 💑 상대방의 애착 유형: [불안형/회피형/안정형]
 
 **주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장. 본인의 연락에 대한 반응 패턴 언급]
+- **[특징1 제목]**: [구체적 설명 2-3문장.]
   
-- **[특징2 제목]**: [구체적 설명 2-3문장. 실제 대화에서 관찰된 회피/접근 패턴]
+- **[특징2 제목]**: [구체적 설명 2-3문장.]
   
-- **[특징3 제목]**: [구체적 설명 2-3문장]
+- **[특징3 제목]**: [구체적 설명 2-3문장.]
 
 ---
 
