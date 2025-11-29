@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import streamlit as st
 from datetime import datetime
 from sqlalchemy import create_engine
@@ -14,6 +14,24 @@ import re
 
 import time
 from google.api_core import exceptions as google_exceptions
+from streamlit_oauth import OAuth2Component, StreamlitOauthError
+
+# 구글 OAuth 설정
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+GOOGLE_SCOPE = "openid email profile"
+
+google_oauth = OAuth2Component(
+    GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_SECRET,
+    GOOGLE_AUTH_URL,
+    GOOGLE_TOKEN_URL,
+    GOOGLE_USERINFO_URL,
+    GOOGLE_SCOPE
+)
 
 # Load .env file from the correct path
 env_path = Path(__file__).parent / '.env'
@@ -506,7 +524,29 @@ def parse_conversation_file(file_content):
     return filtered_messages
 
 st.set_page_config(layout='wide', page_title='(R)Evolution', page_icon='💝')
-st.markdown('<style>.block-container{padding-top:2rem;padding-bottom:2rem;}.main .block-container{max-width:700px;margin:auto;}div[data-testid=\"stButton\"]>button{width:100%;padding:15px;margin-top:10px;font-size:1.1em;font-weight:600;border-radius:8px;}</style>', unsafe_allow_html=True)
+st.markdown('<style>.block-container{padding-top:2rem;padding-bottom:2rem;}.main .block-container{max-width:700px;margin:auto;}div[data-testid=\"stButton\"]>button{width:100%;padding:15px;margin-top:10px;font-size:1.1em;font-weight:600;border-radius:8px;}div[data-testid=\"stButton\"]>button[kind="primary"]{background:transparent !important;border:none !important;color:#FFFFFF !important;box-shadow:none !important;padding:8px 24px !important;width:auto !important;font-size:0.95em !important;white-space:nowrap !important;}div[data-testid=\"stButton\"]>button[kind="primary"]:hover{background:rgba(255,255,255,0.1) !important;border:none !important;}</style>', unsafe_allow_html=True)
+
+# Login button in top-right corner
+col1, col2 = st.columns([6, 1])
+with col2:
+    # 1. 로그인 상태인 경우 (토큰이 있음) -> 'Logout' 버튼 표시
+    if 'token' in st.session_state:
+        if st.button('Logout', key='top_logout_btn', type='primary'):
+            # 로그아웃 처리
+            del st.session_state['token']          # 토큰 삭제
+            st.session_state.show_login = False    # 로그인 화면 닫기
+            
+            # (선택사항) 관리자 로그인 상태였다면 그것도 해제
+            if 'is_admin' in st.session_state:
+                del st.session_state['is_admin']
+                
+            st.rerun() # 새로고침
+            
+    # 2. 비로그인 상태인 경우 -> 'Login' 버튼 표시
+    else:
+        if st.button('Login', key='top_login_btn', type='primary'):
+            st.session_state.show_login = True
+            st.rerun()
 
 if 'screen' not in st.session_state:
     st.session_state.screen = 'home'
@@ -520,17 +560,10 @@ if st.session_state.screen == 'home':
     st.write('AI-based relationship analysis using your actual conversation data.')
     st.markdown('---')
     st.header('What is your current status?')
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button('💑 In a Relationship', key='btn_dating', use_container_width=True):
-            st.session_state.mode = 'Dating'
-            st.session_state.screen = 'onboarding'
-            st.rerun()
-    with col2:
-        if st.button('💔 Breakup', key='btn_breakup', use_container_width=True):
-            st.session_state.mode = 'Breakup'
-            st.session_state.screen = 'onboarding'
-            st.rerun()
+    if st.button('💔 Breakup', key='btn_breakup', use_container_width=True):
+        st.session_state.mode = 'Breakup'
+        st.session_state.screen = 'onboarding'
+        st.rerun()
     
     st.markdown('---')
     
@@ -1526,7 +1559,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
 ---
 
 한국어로 작성하고, 따뜻하면서도 구체적인 조언을 제공하세요."""
-                
+
                 # Check if result is already cached
                 cache_key = f"next_relationship_{relationship_id}"
                 if cache_key not in st.session_state:
@@ -1927,7 +1960,7 @@ FORMAT RULES:
 1. INFJ
 2. 있어보이는 척 하는 전문 용어(e.g., "Attentional distraction") 사용 금지
 3. 과도한 추론 금지
-   - (X) ";;은 불안의 신호입니다" → (O) "대화 맥락상 확인 필요"
+   - (X) ";;은 슬픔이 아닙니다" → (O) "대화 맥락상 확인 필요"
    - (X) "답장이 늦어서 관심이 없는 것 같습니다" → (O) "평소 패턴 대비 답장 시간 변화"
    - **[규칙]** 단일 메시지가 아닌, 최소 3개 이상의 대화 흐름에서 패턴을 찾을 것
    - **[예외]** 답장 지연 이유가 앞뒤 대화에 명시된 경우 Negative 신호 제외
@@ -2188,3 +2221,48 @@ elif st.session_state.screen == 'admin':
     
     finally:
         session.close()
+
+# 로그인 화면이 활성화되었을 때
+if st.session_state.get('show_login', False):
+    st.markdown('---')
+    st.markdown('#### 구글 로그인만 지원합니다')
+
+    # 1. 이미 로그인이 된 상태인지 확인
+    if 'token' in st.session_state:
+        st.success("✅ 로그인 상태입니다.")
+        
+        # [추가] 로그아웃 버튼 만들기
+        if st.button("로그아웃", key='logout_btn', use_container_width=True):
+            # 토큰 삭제 (로그아웃 처리)
+            del st.session_state['token']
+            
+            # (선택사항) 로그인 창 닫기 등 추가 초기화가 필요하면 여기서 처리
+            # st.session_state.show_login = False 
+            
+            # 화면 새로고침 -> 토큰이 사라졌으니 다시 로그인 버튼이 뜸
+            st.rerun()
+            
+    # 2. 로그인이 안 된 상태라면 -> 로그인 버튼 표시
+    else:
+        try:
+            redirect_uri = os.getenv('REDIRECT_URI', 'http://localhost:8501')
+            
+            result = google_oauth.authorize_button(
+                name='구글 로그인',
+                redirect_uri=redirect_uri,
+                scope=GOOGLE_SCOPE,
+                key='google_login_btn',
+                use_container_width=True
+            )
+
+            if result and result.get('token'):
+                st.session_state['token'] = result.get('token')
+                st.success("로그인 성공!")
+                st.rerun()
+                
+        except StreamlitOauthError:
+            st.warning("⚠️ 보안 토큰이 만료되었습니다. 다시 시도해주세요.")
+            # st.rerun() # 무한 로딩 방지를 위해 주석 처리
+            
+        except Exception as e:
+            st.error(f"로그인 오류: {e}")
