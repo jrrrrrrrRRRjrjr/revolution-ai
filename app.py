@@ -1,3 +1,17 @@
+from dotenv import load_dotenv
+import os
+import streamlit as st
+
+# .env 파일 로드 (로컬 환경)
+load_dotenv()
+
+# 환경변수/Secret 자동 분기 함수
+def get_env(key, default=None):
+    # Streamlit Cloud: st.secrets 우선
+    if hasattr(st, "secrets") and key in st.secrets:
+        return st.secrets[key]
+    # Local .env: os.environ
+    return os.environ.get(key, default)
 # -*- coding: utf-8 -*-
 import streamlit as st
 from datetime import datetime
@@ -15,6 +29,9 @@ import re
 import time
 from google.api_core import exceptions as google_exceptions
 from streamlit_oauth import OAuth2Component, StreamlitOauthError
+
+from dotenv import load_dotenv
+load_dotenv()
 
 # 구글 OAuth 설정
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID', '')
@@ -70,7 +87,7 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 llm = ChatGoogleGenerativeAI(
-    model='gemini-2.5-pro-preview-05-06', 
+    model='gemini-3-pro-preview', 
     temperature=0.3, 
     google_api_key=api_key,
     max_retries=3  # Add retry mechanism
@@ -207,37 +224,21 @@ CORE_AI_IDENTITY = """
 
 
 
-5. 기본 답변 구조 (간단 버전)
-가능하면 아래 흐름을 따른다:
 
 
-상황 요약 + 감정 공감
+답변 구조는 따로 존재하지 않고 자유롭게 대답한다.
+할 말이 많으면 길게, 명확한 답이 있다면 짧고 굵게 답변해줄 것.
 
 
-“지금 상황은 ○○이고, 그래서 △△하게 느끼는 것 같아요. 그 마음이 이해돼요.”
-
-
-
-
-내담자의 입장 정리
-
-
-연인의 입장 가능성 정리 (사실 아님을 명시)
-
-
-“연인의 행동만 보면, 이런 마음이었을 수도 있어요. 다만 확실하진 않아요.”
+가장 중요한 것은 INFJ처럼 공감하고 이해하는 과정에서 우러나오는 진심어린 대답 혹은 충고이다.
+상대방은 너의 소중한 사람이다. 그런 사람에게 무조건적인 공감으로 다독여줄 수는 있지만, 그런 경우는 
+상대방에게 사건에 대한 이해도 주지 못할 뿐더러, 나중에 똑같은 문제를 겪을 가능성이 높다. 
+우리는 상대방이 그런 일을 겪게하지 않기 위해 '진심'으로 공감하고 이해하며, 때로는 현실적인 조언도 주어야만 한다.
+그게 상대방이 올바른 시야로 바라보게끔 도와주는 길이다.
 
 
 
 
-둘 사이 패턴·구조 짚어주기
-
-
-현실적인 선택지나 대화 방법 제안
-
-
-내담자의 진지한 고민 자체를 인정하며 마무리
-(과장 없이, 실제 말과 행동에 근거해 인정하기)
 
 
 
@@ -535,17 +536,19 @@ with col2:
             # 로그아웃 처리
             del st.session_state['token']          # 토큰 삭제
             st.session_state.show_login = False    # 로그인 화면 닫기
-            
             # (선택사항) 관리자 로그인 상태였다면 그것도 해제
             if 'is_admin' in st.session_state:
                 del st.session_state['is_admin']
-                
+            st.session_state.screen = 'home'
+            st.session_state.mode = None
             st.rerun() # 새로고침
             
     # 2. 비로그인 상태인 경우 -> 'Login' 버튼 표시
     else:
         if st.button('Login', key='top_login_btn', type='primary'):
             st.session_state.show_login = True
+            st.session_state.screen = 'home'
+            st.session_state.mode = None
             st.rerun()
 
 if 'screen' not in st.session_state:
@@ -559,13 +562,87 @@ if st.session_state.screen == 'home':
     st.title('(R)Evolution')
     st.write('AI-based relationship analysis using your actual conversation data.')
     st.markdown('---')
-    st.header('What is your current status?')
-    if st.button('💔 Breakup', key='btn_breakup', use_container_width=True):
-        st.session_state.mode = 'Breakup'
-        st.session_state.screen = 'onboarding'
-        st.rerun()
-    
-    st.markdown('---')
+
+    st.header('Choose a partner to analyze:')
+    # 관계 리스트가 있으면 해당 정보를 버튼에 연결
+    relationship_list = st.session_state.get('relationship_list', None)
+    if relationship_list and len(relationship_list) > 0:
+        # 최대 3개만 표시
+        show_list = relationship_list[:3]
+        with st.container():
+            for idx, rel in enumerate(show_list):
+                # 상대방 정보 가져오기
+                db = SessionLocal()
+                partner_participant = db.query(Participant).filter_by(relationship_id=rel.relationship_id, role='partner').first()
+                db.close()
+                partner_name = partner_participant.mbti if partner_participant and partner_participant.mbti else f"상대방 {idx+1}"
+                btn_label = f"⊕ {partner_name}"
+                if st.button(btn_label, key=f'btn_partner_{idx}', use_container_width=True):
+                    # 이미 저장된 관계 클릭 시 온보딩 스킵, 바로 분석 화면 이동
+                    st.session_state.selected_relationship = rel
+                    st.session_state.selected_partner = partner_name
+                    st.session_state.mode = rel.status if hasattr(rel, 'status') else 'Breakup'
+                    # 관계의 상세 정보도 세션에 저장
+                    db = SessionLocal()
+                    self_participant = db.query(Participant).filter_by(relationship_id=rel.relationship_id, role='self').first()
+                    partner_participant = db.query(Participant).filter_by(relationship_id=rel.relationship_id, role='partner').first()
+                    db.close()
+                    # 대화록 복원 (ChromaDB에서)
+                    try:
+                        from database.chroma_db import get_or_create_relationship_collection
+                        collection = get_or_create_relationship_collection(rel.relationship_id)
+                        all_data = collection.get(include=['documents', 'metadatas'])
+                        conversation_log = []
+                        if all_data and all_data['documents']:
+                            for doc, meta in zip(all_data['documents'], all_data['metadatas']):
+                                conversation_log.append({
+                                    'text': doc,
+                                    'speaker': meta.get('speaker'),
+                                    'timestamp': meta.get('timestamp'),
+                                    'line_number': meta.get('line_number'),
+                                    'message_index': meta.get('message_index')
+                                })
+                        conversation_lines = len(conversation_log)
+                    except Exception:
+                        conversation_log = []
+                        conversation_lines = 0
+                    st.session_state.onboarding_data = {
+                        'user_id': rel.user_id,
+                        'relationship_id': rel.relationship_id,
+                        'self_age': self_participant.age if self_participant else None,
+                        'self_gender': self_participant.gender if self_participant else None,
+                        'self_mbti': self_participant.mbti if self_participant else None,
+                        'self_occupation': self_participant.occupation if self_participant else None,
+                        'partner_age': partner_participant.age if partner_participant else None,
+                        'partner_gender': partner_participant.gender if partner_participant else None,
+                        'partner_mbti': partner_participant.mbti if partner_participant else None,
+                        'partner_occupation': partner_participant.occupation if partner_participant else None,
+                        'start_date': rel.start_date,
+                        'end_date': rel.end_date,
+                        'is_ldr': self_participant.notes if self_participant else None,
+                        'conversation_lines': conversation_lines,
+                        'conversation_log': conversation_log,
+                        'self_speaker_name': None,
+                        'partner_speaker_name': None
+                    }
+                    st.session_state.screen = 'analysis'
+                    st.rerun()
+        st.markdown('---')
+    else:
+        # 기존 샘플 화자 버튼 로직 유지
+        speakers = st.session_state.get('sample_speakers', None)
+        if speakers and len(speakers) >= 3:
+            button_names = [name if name else '' for name in speakers[:3]]
+        else:
+            button_names = ['', '', '']
+        with st.container():
+            for idx, name in enumerate(button_names):
+                if st.button(f'⊕ {name}', key=f'btn_partner_{idx}', use_container_width=True):
+                    st.session_state.selected_partner = name
+                    st.session_state.mode = 'Breakup'
+                    st.session_state.screen = 'onboarding'
+                    st.rerun()
+        st.markdown('---')
     
     if st.button('🧪 Test Mode (Auto-fill with sample data)', key='btn_test', use_container_width=True):
         # Create sample conversation data
@@ -598,6 +675,7 @@ if st.session_state.screen == 'home':
         # Parse sample conversation
         parsed_messages = parse_conversation_file(sample_conversation)
         speakers = list(set([msg['speaker'] for msg in parsed_messages if msg['speaker'] and is_valid_speaker(msg['speaker'])]))
+        st.session_state.sample_speakers = speakers
         
         # Pre-fill test data with correct structure
         st.session_state.temp_parsed_data = {
@@ -623,15 +701,36 @@ if st.session_state.screen == 'home':
     
     # Admin login section
     with st.expander('🔒 관리자 로그인'):
+        admin_email = st.text_input('관리자 이메일', key='admin_email')
         admin_password = st.text_input('관리자 비밀번호', type='password', key='admin_pw')
         if st.button('로그인', key='admin_login_btn'):
             # Simple password check (in production, use proper authentication)
-            if admin_password == os.getenv('ADMIN_PASSWORD', 'admin123'):
+            if admin_password == get_env('ADMIN_PASSWORD', 'admin123'):
                 st.session_state.is_admin = True
-                st.session_state.screen = 'admin'
-                st.rerun()
+
+                # --- 사용자 이메일로 DB에서 모든 관계(relationship) 조회 ---
+                db = SessionLocal()
+                try:
+                    user = db.query(User).filter_by(email=admin_email).first()
+                    if user:
+                        relationships = db.query(Relationship).filter_by(user_id=user.user_id).order_by(Relationship.relationship_id.desc()).all()
+                        if relationships:
+                            st.session_state.relationship_list = relationships
+                        else:
+                            st.session_state.relationship_list = []
+                            st.error('❌ 해당 사용자의 관계 데이터가 없습니다.')
+                    else:
+                        st.session_state.relationship_list = []
+                        st.error('❌ 해당 이메일로 등록된 사용자가 없습니다.')
+                except Exception as e:
+                    st.session_state.relationship_list = []
+                    st.error(f'❌ 사용자 데이터 불러오기 실패: {str(e)}')
+                finally:
+                    db.close()
             else:
                 st.error('❌ 잘못된 비밀번호입니다.')
+            st.session_state.screen = 'home'
+            st.rerun()
 
 elif st.session_state.screen == 'onboarding':
     st.title(f'(R)Evolution - {st.session_state.mode} Mode')
@@ -662,8 +761,15 @@ elif st.session_state.screen == 'onboarding':
             start_date = st.date_input('Relationship Start Date', value=datetime.now())
             is_ldr = st.checkbox('Long-distance relationship?')
         with col6:
-            if st.session_state.mode == 'Breakup':
-                end_date = st.date_input('Breakup Date', value=datetime.now())
+            # Breakup Date: 'x' 기호 또는 날짜 입력
+            end_date_input = st.text_input('Breakup Date (YYYY-MM-DD or x)', value='x')
+            # 상태 판별: 날짜 입력이면 이별, 'x'이면 연애
+            try:
+                end_date = datetime.strptime(end_date_input, '%Y-%m-%d').date()
+                relationship_status = 'breakup'
+            except ValueError:
+                end_date = None
+                relationship_status = 'dating'
         st.markdown('---')
         st.subheader('📱 Conversation Log')
         uploaded_file = st.file_uploader('Upload conversation log (.txt file)', type=['txt'], help='Upload your KakaoTalk or text message conversation export')
@@ -698,8 +804,9 @@ elif st.session_state.screen == 'onboarding':
                                     'partner_mbti': partner_mbti if partner_mbti else None,
                                     'partner_occupation': partner_occupation if partner_occupation else None,
                                     'start_date': start_date,
-                                    'end_date': end_date if st.session_state.mode == 'Breakup' else None,
-                                    'is_ldr': is_ldr
+                                    'end_date': end_date,
+                                    'is_ldr': is_ldr,
+                                    'relationship_status': relationship_status
                                 }
                             }
                             
@@ -785,6 +892,12 @@ elif st.session_state.screen == 'speaker_selection':
     
     st.markdown('---')
     
+    # 파트너 선택 시 알림
+    if partner_speaker:
+        st.success(f"파트너 선택 완료: {partner_speaker}")
+
+
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button('← Back to Edit Info', use_container_width=True):
@@ -795,19 +908,34 @@ elif st.session_state.screen == 'speaker_selection':
     with col2:
         # Disable button if already processing
         is_processing = st.session_state.get('is_saving', False)
-        
-        if st.button('✅ Confirm & Save', type='primary', use_container_width=True, disabled=(not partner_speaker or is_processing)):
+        percent = st.session_state.get('save_progress', 0)
+        eta = st.session_state.get('save_eta', None)
+            # 저장 중일 때 알림
+        if is_processing:
+            if eta is not None:
+                st.info(f"저장 중입니다. 잠시만 기다려주세요... ({percent:.0f}%) | 예상 남은 시간: {eta:.1f}초")
+            else:
+                st.info(f"저장 중입니다. 잠시만 기다려주세요... ({percent:.0f}%)")
+
+        if st.button('✅ Confirm & Save', use_container_width=True, disabled=(not partner_speaker or is_processing)):
             # Set processing flag to prevent double-click
             st.session_state.is_saving = True
-            
+
             with st.spinner('💾 Saving conversation with correct speaker labels...'):
                 # Save to SQLite database
                 db = SessionLocal()
-                
+
                 try:
                     # Create User
+                    # 실제 로그인 이메일을 사용
+                    login_email = st.session_state.get('user_email') or st.session_state.get('admin_email')
+                    if not login_email:
+                        st.error('로그인 이메일 정보를 찾을 수 없습니다. 먼저 로그인해주세요.')
+                        st.session_state.is_saving = False
+                        db.close()
+                        st.stop()
                     user = User(
-                        email=f"user_{datetime.now().timestamp()}@example.com",
+                        email=login_email,
                         password_hash="temp_hash"
                     )
                     db.add(user)
@@ -854,7 +982,7 @@ elif st.session_state.screen == 'speaker_selection':
                     
                     db.commit()
                     
-                    # Remap speakers to 'self', 'partner', and 'other'
+                    # Remap speakers to 'self', 'partner',
                     speaker_map = {
                         self_speaker: 'self',
                         partner_speaker: 'partner'
@@ -889,12 +1017,15 @@ elif st.session_state.screen == 'speaker_selection':
                         # Save to ChromaDB (reset=True to clear old data for this relationship)
                         collection = get_or_create_relationship_collection(relationship.relationship_id, reset=True)
                         
-                        batch_size = 100
+                        import time
+                        batch_size = 500
                         progress_bar = st.progress(0)
-                        
-                        for i in range(0, len(messages_to_save), batch_size):
+                        progress_msg = st.empty()  # 실시간 메시지 영역
+                        start_time = time.time()
+                        total_batches = (len(messages_to_save) + batch_size - 1) // batch_size
+
+                        for batch_idx, i in enumerate(range(0, len(messages_to_save), batch_size)):
                             batch_messages = messages_to_save[i:i+batch_size]
-                            
                             ids = [f"chat_msg_{i+j}_{relationship.relationship_id}" for j in range(len(batch_messages))]
                             documents = [msg['text'] for msg in batch_messages]
                             metadatas = [
@@ -908,18 +1039,26 @@ elif st.session_state.screen == 'speaker_selection':
                                 }
                                 for j, msg in enumerate(batch_messages)
                             ]
-                            
                             collection.add(
                                 ids=ids,
                                 documents=documents,
                                 metadatas=metadatas
                             )
-                            
                             progress = min((i + batch_size) / len(messages_to_save), 1.0)
+                            percent = progress * 100
+                            elapsed = time.time() - start_time
+                            batches_done = batch_idx + 1
+                            if batches_done < total_batches:
+                                avg_time_per_batch = elapsed / batches_done
+                                eta = avg_time_per_batch * (total_batches - batches_done)
+                            else:
+                                eta = 0
+                            progress_msg.info(f"저장 중입니다... ({percent:.0f}%) | 예상 남은 시간: {eta:.1f}초")
                             progress_bar.progress(progress)
-                        
+
                         progress_bar.empty()
-                        
+                        progress_msg.empty()
+                                                
                         # Save to session state
                         st.session_state.onboarding_data = {
                             'user_id': user.user_id,
@@ -952,13 +1091,23 @@ elif st.session_state.screen == 'speaker_selection':
                 except Exception as e:
                     st.error(f'❌ Error saving data: {str(e)}')
                     db.rollback()
-                    # Clear processing flag on error
-                    st.session_state.is_saving = False
+                    # 에러 났을 때도 초기화는 finally에서 한꺼번에 처리하므로 여기선 뺍니다.
+                    
                 finally:
                     db.close()
+                    
+                    # [핵심 예방 코드] 무조건 실행되는 안전장치
+                    # 성공했든 실패했든 '저장 중' 상태를 강제로 끕니다.
+                    if 'is_saving' in st.session_state:
+                        st.session_state.is_saving = False
+                    
+                    if 'save_progress' in st.session_state:
+                        st.session_state.save_progress = 0
 
 elif st.session_state.screen == 'analysis': #Analysis Screen
-    st.title(f'(R)Evolution - {st.session_state.mode} Analysis')
+    # 상태에 따라 타이틀 변경
+    status = st.session_state.onboarding_data.get('relationship_status', 'dating')
+    st.title(f'(R)Evolution - {status.capitalize()} Analysis')
     
     # Get stored data
     data = st.session_state.onboarding_data
@@ -966,14 +1115,20 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
     
     st.markdown('---')
     
-    if st.session_state.mode == 'Breakup':
+    if status == 'breakup':
         # === BREAKUP MODE FEATURES ===
         
         st.subheader('📊 Relationship Overview')
         col1, col2, col3 = st.columns(3)
         with col1:
-            duration = (data.get('end_date') - data.get('start_date')).days if data.get('end_date') and data.get('start_date') else 0
+            if data.get('end_date') and data.get('start_date'):
+                duration = (data.get('end_date') - data.get('start_date')).days
+                breakup_date_display = data.get('end_date').strftime('%Y-%m-%d')
+            else:
+                duration = 0
+                breakup_date_display = 'x'
             st.metric('Duration', f'{duration} days')
+            st.metric('Breakup Date', breakup_date_display)
         with col2:
             st.metric('Conversation Lines', data.get('conversation_lines', 0))
         with col3:
@@ -1050,87 +1205,111 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     conversation_context = "\n".join(context_messages) if context_messages else "No data"
                     
                     # AI Prompt for Attachment Style Analysis (with empathy first)
-                    attachment_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
+                    attachment_prompt = f"""당신은 섣불리 판단하지 않는 친구같은 신중한 INFJ 상담가입니다.
 
-⚠️ 중요: 아래 형식을 정확히 따라주세요. "애착 이론 전문가로서..." 같은 말로 시작하지 마세요!
+🎯 분석 목표:
+제공된 대화 조각들만으로 두 사람의 애착 유형을 진단해야 합니다.
+단, AI의 일반적인 편견(무조건 불안-회피로 몰아가는 경향)을 버리고, **'안정형(Secure)'일 가능성을 최우선으로 검토**하세요.
+
+⚠️ 데이터 해석의 주의점:
+1. **상황적 요인 고려:** - '바빠'라고 하는 건 회피형이라서가 아니라, 정말 업무가 바빠서일 수 있습니다. (사실 확인 필요)
+   - '연락 좀 해'라고 하는 건 불안형이라서가 아니라, 상대방이 약속을 어겼기 때문일 수 있습니다. (정당한 요구일 수 있음)
+2. **증거 불충분 시 '유보':** - 단편적인 메시지만으로 병적인 애착 유형을 확정 짓지 마세요.
+   - 명확한 패턴이 없다면 "안정형에 가까우나 상황에 따라 반응함"으로 진단하세요.
 
 ---
 
-**사용자가 말한 감정:**
-"{user_input}"
+**사용자(SELF)가 입력한 개인정보:**
+{user_input}
 
-**두 사람의 대화 패턴 (전체 대화록):**
+**사용자(SELF)와 상대방(PARTNER)의 대화 흔적:**
 {conversation_context}
 
 ---
 
-**분석 지침:**
-- 위 대화록에서 [SELF]와 [PARTNER]의 **상호작용 패턴**을 관찰하세요
-- [SELF]가 연락했을 때 [PARTNER]가 어떻게 반응했는지 확인
-- 연속된 메시지, 답장 빈도, 감정 표현 방식의 차이를 분석
-- 갈등 상황에서 각자의 대처 방식 파악
-- 이를 바탕으로 두 사람의 애착 유형을 추론하세요 (불안형, 회피형, 안정형 중 하나)
+**답변 작성 가이드 (한국어):**
+
+### 👤 당신의 애착 유형 분석
+**진단:** [안정형 / 불안형 / 회피형 / 특정할 수 없음] 중 택1
+
+**객관적 관찰:**
+- 사용자가 감정을 표현하는 방식이 과도한가요, 아니면 솔직하고 적절한가요?
+- 예: "연락을 기다리는 모습이 보이지만, 이를 공격적으로 표현하지 않고 차분히 기다리는 점은 안정적인 태도입니다." (긍정 해석 시도)
+
+### 💑 상대방의 애착 유형 분석
+**진단:** [안정형 / 불안형 / 회피형 / 특정할 수 없음] 중 택1
+
+**객관적 관찰:**
+- 상대방의 거절이나 단답이 '관계 회피'인가요, 아니면 '개인 영역 존중'인가요?
+- 예: "답장은 짧지만, 질문에 대해 명확한 답을 주고 만남 자체를 거부하지 않는다면 회피형이라기보다 독립적인 성향일 수 있습니다."
+
+### ⚖️ 종합 및 제언
+- 두 사람의 갈등이 '성격 차이'인지 '애착 유형의 충돌'인지 구분해주세요.
+- 뻔한 해결책 말고, 이 커플의 대화 패턴에 맞는 구체적인(Actionable) 팁 1가지를 주세요.
+
 ---
+**[절대 금지]**
+- 무조건적인 "불안-회피" 프레임 씌우기 금지
+- 전문 용어 남발 금지
+- 데이터에 없는 내용을 상상해서 적기 금지
 
-**답변 작성 규칙:**
-
-1. 첫 문장: 사용자 감정에 공감 (1-2문장, 간결하게)
-2. 두 번째 문장: "두 분의 애착 유형을 분석해봤어요." 또는 유사한 자연스러운 전환
-3. 그 다음: 바로 애착 유형 분석 시작
-
-**형식:**
-
-정말 힘드셨겠어요. [간단한 공감 1문장]
-
-두 분의 애착 유형을 분석해봤어요.
-
----
-
-### 👤 본인의 애착 유형: [불안형/회피형/안정형]
-
-**주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장.]
-  
-- **[특징2 제목]**: [구체적 설명 2-3문장.]
-  
-- **[특징3 제목]**: [구체적 설명 2-3문장]
 
 ---
 
-### 💑 상대방의 애착 유형: [불안형/회피형/안정형]
+YOUR ANALYSIS MUST INCLUDE:
 
-**주요 특징:**
-- **[특징1 제목]**: [구체적 설명 2-3문장.]
-  
-- **[특징2 제목]**: [구체적 설명 2-3문장.]
-  
-- **[특징3 제목]**: [구체적 설명 2-3문장.]
+### 👤 당신의 애착 유형 (Your Attachment Style)
 
----
+**진단 결과:** [Anxious/Avoidant/Secure]
 
-### 💔 왜 이런 갈등이?
+**근거:**
+- [Cite 2-3 specific conversation patterns that support this diagnosis]
+- [Use actual messages as evidence]
 
-[불안형-회피형/안정형 등] 조합의 관계 역학을 1-2문장으로 설명. "{user_input}"라는 감정이 왜 생겼는지 **상호작용 패턴**을 바탕으로 마무리.
-
-예: "본인이 연락할수록 상대방은 더 부담을 느끼고 멀어지는 전형적인 불안형-회피형 악순환이 보입니다."
+**특징:**
+- [2-3 key characteristics observed in the data]
 
 ---
 
-⚠️ 절대 금지:
-- "[먼저 공감부터]" 같은 지시문 출력
-- "애착 이론 전문가로서" 같은 형식적 시작
-- 본인/상대방 이름 반복적으로 언급
+### 💑 상대방의 애착 유형 (Partner's Attachment Style)
 
-⚠️ 메시지 인용 규칙:
-- 위에 제공된 대화 데이터는 실제 대화이므로 신뢰도 높음
-- 필요시 패턴을 설명할 때 간단히 인용 가능 (예: "연속으로 여러 번 연락 시도", "답장이 점차 늦어짐")
-- 단, 제공되지 않은 메시지는 절대 지어내지 말 것
-- **상호작용의 흐름**에 주목: "A가 이렇게 하니까 B가 저렇게 반응" 같은 패턴 분석
+**진단 결과:** [Anxious/Avoidant/Secure]
 
-필수:
-- 전체 대화의 흐름과 상호작용 패턴 중심으로 분석
-- 따뜻하고 공감적인 톤
-- 한국어로 작성"""
+**근거:**
+- [Cite 2-3 specific conversation patterns that support this diagnosis]
+- [Use actual messages as evidence]
+
+**특징:**
+- [2-3 key characteristics observed in the data]
+
+---
+
+### 🔄 조합 분석 (Combination Analysis)
+
+**조합:** [Your Type] + [Partner Type]
+
+**관계 역학:**
+- [How these two styles interact based on psychology research]
+- [What patterns emerge from this combination]
+
+**강점:**
+- [2-3 positive aspects of this combination]
+
+**도전 과제:**
+- [2-3 challenges this combination typically faces]
+
+**관계 개선 조언:**
+- [2-3 specific, actionable suggestions for this combination]
+- [Based on attachment theory best practices]
+
+---
+
+FORMAT RULES:
+- Write in Korean
+- Be empathetic but honest
+- Cite specific conversation examples
+- Keep psychological terminology simple
+- Provide actionable advice"""
 
                 # Call LLM for attachment analysis
                 attachment_response = call_llm_with_rate_limit(attachment_prompt)
@@ -1178,25 +1357,18 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                     ])
                     
                     # Follow-up question prompt
-                    followup_prompt = f"""당신은 공감적이고 따뜻한 연애 상담 AI입니다.
-
-사용자가 이미 애착 유형 분석을 받았고, 추가 질문을 하고 있습니다.
+                    followup_prompt = f"""당신은 정형화된 챗봇이 아니라, 날카로운 통찰력을 가진 인간적인  INFJ의 성향을 가진 연애 코치입니다.
 
 **이전 대화 맥락:**
 {chat_history}
 
-**사용자의 새로운 질문:**
+**사용자의 질문:**
 "{user_input}"
 
 **관련 대화 데이터:**
 {context_text}
 
-**답변 지침:**
-1. 사용자의 질문에 직접적으로 답변하세요
-2. 대화 데이터를 기반으로 객관적인 인사이트 제공
-3. 애착 유형을 다시 설명하지 마세요 (이미 분석했음)
-4. 2-3 문단으로 간결하게 작성
-5. 따뜻하고 공감적인 톤 유지
+
 
 한국어로 답변하세요."""
 
@@ -1575,9 +1747,9 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 st.success('✅ 분석 완료! 다음 연애를 위한 조언을 확인해보세요.')
         
         st.markdown('---')
-        st.caption('�💡 이 기능은 당신의 과거 대화 패턴을 분석하여 맞춤형 조언을 제공합니다.')
+        st.caption('💡 이 기능은 당신의 과거 대화 패턴을 분석하여 맞춤형 조언을 제공합니다.')
     
-    elif st.session_state.mode == 'Dating':
+    elif status == 'dating':
         # === DATING MODE FEATURES ===
         st.subheader('💑 Dating Mode Analysis')
         
@@ -1672,7 +1844,7 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 
                 # 4. Affection Expression Frequency (애정 표현 빈도)
                 # Search for affection keywords
-                affection_keywords = ['사랑', '좋아', '보고싶', '그리워', '�', '❤️', '😘', '💖']
+                affection_keywords = ['사랑', '좋아', '보고싶', '그리워', '❤️', '😘', '💖']
                 
                 self_affection = sum(1 for msg in self_messages 
                                     if any(keyword in msg.get('text', '') for keyword in affection_keywords))
@@ -1727,18 +1899,20 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 
                 relationship_id = st.session_state.onboarding_data['relationship_id']
                 
+                common_query = "연락 왜 서운 미안 바빠 힘들다 사랑 좋아 고마워 재밌다 ㅋㅋ ㅎㅎ 맛집 우리"
+
                 # Get conversation patterns for both speakers
                 self_patterns = search_conversation_memory(
                     relationship_id=relationship_id,
-                    query="걱정 불안 확인 연락 보고싶 기다려 혹시 괜찮아",
-                    n_results=15,
+                    query=common_query,
+                    n_results=20,
                     speaker_filter='self'
                 )
                 
                 partner_patterns = search_conversation_memory(
                     relationship_id=relationship_id,
-                    query="바빠 힘들어 나중에 굳이 알겠어 괜찮아",
-                    n_results=15,
+                    query=common_query,
+                    n_results=20,
                     speaker_filter='partner'
                 )
                 
@@ -1757,30 +1931,54 @@ elif st.session_state.screen == 'analysis': #Analysis Screen
                 partner_text = "\n".join(partner_context) if partner_context else "No data"
                 
                 # AI Prompt for attachment style analysis
-                prompt = f"""You are a relationship psychologist analyzing attachment styles based on conversation patterns.
+                prompt = f"""당신은 섣불리 판단하지 않는 친구같은 신중한 INFJ 상담가입니다.
 
-🎯 YOUR TASK:
-Diagnose the attachment style of BOTH people based on their conversation patterns, then analyze their compatibility.
+🎯 분석 목표:
+제공된 대화 조각들만으로 두 사람의 애착 유형을 진단해야 합니다.
+단, AI의 일반적인 편견(무조건 불안-회피로 몰아가는 경향)을 버리고, **'안정형(Secure)'일 가능성을 최우선으로 검토**하세요.
 
-📚 ATTACHMENT STYLES:
-1. **Anxious (불안형)**: Seeks constant reassurance, fears abandonment, high emotional expression, frequent contact needs
-2. **Avoidant (회피형)**: Values independence, uncomfortable with intimacy, needs space, minimal emotional expression
-3. **Secure (안정형)**: Comfortable with intimacy and independence, clear communication, balanced emotional expression
-
-⚠️ CRITICAL RULES:
-- Use ONLY the conversation patterns provided
-- Cite specific examples from the data
-- Be objective and evidence-based
-- Do NOT make assumptions beyond the data
-- Each person can only be ONE primary type (with secondary tendencies if clear)
+⚠️ 데이터 해석의 주의점:
+1. **상황적 요인 고려:** - '바빠'라고 하는 건 회피형이라서가 아니라, 정말 업무가 바빠서일 수 있습니다. (사실 확인 필요)
+   - '연락 좀 해'라고 하는 건 불안형이라서가 아니라, 상대방이 약속을 어겼기 때문일 수 있습니다. (정당한 요구일 수 있음)
+2. **증거 불충분 시 '유보':** - 단편적인 메시지만으로 병적인 애착 유형을 확정 짓지 마세요.
+   - 명확한 패턴이 없다면 "안정형에 가까우나 상황에 따라 반응함"으로 진단하세요.
 
 ---
 
-USER'S CONVERSATION PATTERNS:
+**사용자(SELF)의 대화 흔적:**
 {self_text}
 
-PARTNER'S CONVERSATION PATTERNS:
+**상대방(PARTNER)의 대화 흔적:**
 {partner_text}
+
+---
+
+**답변 작성 가이드 (한국어):**
+
+### 👤 당신의 애착 유형 분석
+**진단:** [안정형 / 불안형 / 회피형 / 특정할 수 없음] 중 택1
+
+**객관적 관찰:**
+- 사용자가 감정을 표현하는 방식이 과도한가요, 아니면 솔직하고 적절한가요?
+- 예: "연락을 기다리는 모습이 보이지만, 이를 공격적으로 표현하지 않고 차분히 기다리는 점은 안정적인 태도입니다." (긍정 해석 시도)
+
+### 💑 상대방의 애착 유형 분석
+**진단:** [안정형 / 불안형 / 회피형 / 특정할 수 없음] 중 택1
+
+**객관적 관찰:**
+- 상대방의 거절이나 단답이 '관계 회피'인가요, 아니면 '개인 영역 존중'인가요?
+- 예: "답장은 짧지만, 질문에 대해 명확한 답을 주고 만남 자체를 거부하지 않는다면 회피형이라기보다 독립적인 성향일 수 있습니다."
+
+### ⚖️ 종합 및 제언
+- 두 사람의 갈등이 '성격 차이'인지 '애착 유형의 충돌'인지 구분해주세요.
+- 뻔한 해결책 말고, 이 커플의 대화 패턴에 맞는 구체적인(Actionable) 팁 1가지를 주세요.
+
+---
+**[절대 금지]**
+- 무조건적인 "불안-회피" 프레임 씌우기 금지
+- 전문 용어 남발 금지
+- 데이터에 없는 내용을 상상해서 적기 금지
+
 
 ---
 
@@ -2030,7 +2228,7 @@ Your identity is an **'Objective Data Analyst'**, not a therapist.
 
 * **[CRITICAL RULE]** Your diagnosis MUST be supported by 2-3 direct quotes from the `Conversation Evidence`.
 * **[규칙]** 최소 3개 이상의 대화 흐름에서 패턴을 추출 (단일 메시지 X)
-* **(GOOD):** "Jo님의 느낌은 데이터로 뒷받침됩니다. (근거: [PARTNER]가 3회 연속 만남 제안을 '바빠', '피곤해'로 거절, [SELF]만 '우리 줌공할까?' 제안)"
+* **(GOOD):** "철수님의 느낌은 데이터로 뒷받침됩니다. (근거: [PARTNER]가 3회 연속 만남 제안을 '바빠', '피곤해'로 거절, [SELF]만 '우리 줌켜서 공부할까?' 제안)"
 * **(BAD):** "상대방이 바빠서 그런 것 같습니다." (X - 근거 없는 추론)
 
 ---
@@ -2042,7 +2240,7 @@ Your identity is an **'Objective Data Analyst'**, not a therapist.
   
 * **[Positive 진단 + User 불안]** 
   - User 본인 Hobby 기반 불안 해소
-  - 예: "대화록상 관계는 좋습니다. Jo님이 좋아하는 '스크린 야구'를 친구와 하며 마음을 환기하세요."
+  - 예: "대화록상 관계는 좋습니다. 철수님이 좋아하는 '스크린 야구'를 친구와 하며 마음을 환기하세요."
 
 * **[Negative 진단]** 
   - 상대방 Hobby 기반 관계 회복 제안
@@ -2235,17 +2433,18 @@ if st.session_state.get('show_login', False):
         if st.button("로그아웃", key='logout_btn', use_container_width=True):
             # 토큰 삭제 (로그아웃 처리)
             del st.session_state['token']
-            
-            # (선택사항) 로그인 창 닫기 등 추가 초기화가 필요하면 여기서 처리
-            # st.session_state.show_login = False 
-            
-            # 화면 새로고침 -> 토큰이 사라졌으니 다시 로그인 버튼이 뜸
+            st.session_state.screen = 'home'
+            st.session_state.is_admin = False
+            st.session_state.mode = None
+            st.session_state.selected_partner = None
+            st.session_state.selected_relationship = None
+            st.session_state.onboarding_data = None
             st.rerun()
             
     # 2. 로그인이 안 된 상태라면 -> 로그인 버튼 표시
     else:
         try:
-            redirect_uri = os.getenv('REDIRECT_URI', 'http://localhost:8501')
+            redirect_uri = os.getenv('REDIRECT_URI', 'http://localhost:850')
             
             result = google_oauth.authorize_button(
                 name='구글 로그인',
@@ -2256,9 +2455,22 @@ if st.session_state.get('show_login', False):
             )
 
             if result and result.get('token'):
-                st.session_state['token'] = result.get('token')
-                st.success("로그인 성공!")
-                st.rerun()
+                    st.session_state['token'] = result.get('token')
+                    # Fetch user info and save email
+                    import requests
+                    userinfo_resp = requests.get(
+                        GOOGLE_USERINFO_URL,
+                        headers={
+                            'Authorization': f"Bearer {result.get('token')}"
+                        }
+                    )
+                    if userinfo_resp.status_code == 200:
+                        userinfo = userinfo_resp.json()
+                        st.session_state['user_email'] = userinfo.get('email')
+                    else:
+                        st.session_state['user_email'] = None
+                    st.success("로그인 성공!")
+                    st.rerun()
                 
         except StreamlitOauthError:
             st.warning("⚠️ 보안 토큰이 만료되었습니다. 다시 시도해주세요.")
